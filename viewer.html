@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="3D 드럼 연주 애니메이션 뷰어" />
+    <title>DRUM SESSION — 3D Performance</title>
+  </head>
+  <body>
+    <main class="app">
+      <div id="scene" aria-label="드럼 연주 3D 모델"></div>
+
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Drum Session 홈">
+          <span class="brand-mark">DS</span>
+          <span>DRUM SESSION</span>
+        </a>
+        <span class="live"><i></i> LIVE MODEL</span>
+      </header>
+
+      <section class="hero" aria-labelledby="title">
+        <p class="eyebrow">VIRTUAL PERFORMANCE / 001</p>
+        <h1 id="title">FEEL THE<br /><em>RHYTHM.</em></h1>
+        <p class="description">3D로 기록된 드러머의 움직임.<br />버튼을 눌러 연주를 시작해 보세요.</p>
+      </section>
+
+      <aside class="status-panel" aria-live="polite">
+        <span class="status-label">PERFORMANCE</span>
+        <strong id="statusText">LOADING</strong>
+        <div class="meter"><span id="meterBar"></span></div>
+      </aside>
+
+      <div class="controls">
+        <button id="toggleButton" class="play-button" type="button" disabled>
+          <span class="button-icon" aria-hidden="true"><i></i><i></i></span>
+          <span class="button-copy">
+            <small>ANIMATION</small>
+            <strong id="buttonText">LOADING</strong>
+          </span>
+        </button>
+        <p><kbd>SPACE</kbd> TO TOGGLE</p>
+      </div>
+
+      <div id="loading" class="loading">
+        <div class="loading-ring"></div>
+        <p>LOADING PERFORMANCE</p>
+        <span id="loadingPercent">0%</span>
+      </div>
+
+      <div id="error" class="error" role="alert" hidden></div>
+      <footer>THREE.JS / FBX MOTION CAPTURE</footer>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
