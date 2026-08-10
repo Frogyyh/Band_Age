@@ -7,8 +7,21 @@
   --line:#0A0A0A;
 }
 html{
-  zoom:1.8;
+  zoom:1;
 }
+@media (min-width:1200px) and (max-width:1439px){
+  html{ zoom:0.8; }   /* 13인치대 노트북 (1366x768 등) */
+}
+@media (min-width:1440px) and (max-width:1679px){
+  html{ zoom:0.9; }   /* 14~15인치대 (1440x900, 1536x864 등) */
+}
+@media (min-width:1680px) and (max-width:1919px){
+  html{ zoom:1; }      /* 큰 노트북/외장 모니터 */
+}
+@media (min-width:1920px){
+  html{ zoom:1.1; }    /* 풀HD 이상 큰 화면 */
+}
+
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
@@ -123,10 +136,13 @@ body{
 /* combined list panel: 데모 리스트 + 즐겨찾기 in one bordered box */
 .list-panel{
   border:2px solid var(--ink); margin-bottom:22px; padding:22px 26px 6px;
-  max-height:520px; overflow-y:auto;
 }
 .list-section + .list-section{ margin-top:14px; }
 .list-section .panel-head{ margin-bottom:2px; }
+.track-scroll{
+  max-height:220px;
+  overflow-y:auto;
+}
 
 .track{
   display:flex; align-items:center; gap:14px;
