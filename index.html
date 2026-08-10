@@ -61,7 +61,11 @@
         <div class="list-panel">
           <div class="list-section">
             <div class="panel-head">
-              <h2>데모 리스트</h2><span class="count">03 TRACKS</span>
+              <div class="panel-head-left">
+                <h2>데모 리스트</h2>
+                <input type="text" class="list-search" placeholder="검색" aria-label="데모 리스트 검색">
+              </div>
+              <span class="count" data-suffix="TRACKS">00 TRACKS</span>
             </div>
             <div class="track-scroll">
               <div class="track" onclick="toggleTrack(this)">
@@ -93,7 +97,11 @@
 
           <div class="list-section">
             <div class="panel-head">
-              <h2>내 커스텀</h2><span class="count">03 SAVED</span>
+              <div class="panel-head-left">
+                <h2>내 커스텀</h2>
+                <input type="text" class="list-search" placeholder="검색" aria-label="내 커스텀 검색">
+              </div>
+              <span class="count" data-suffix="SAVED">00 SAVED</span>
             </div>
             <div class="track-scroll">
               <div class="track" onclick="toggleTrack(this)">

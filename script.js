@@ -200,6 +200,31 @@ async function submitNickname(){
   }
 }
 
+function updateListCounts(){
+  document.querySelectorAll('.list-section').forEach((section) => {
+    const trackScroll = section.querySelector('.track-scroll');
+    const countEl = section.querySelector('.count');
+    if(!trackScroll || !countEl) return;
+    const total = trackScroll.querySelectorAll('.track').length;
+    const suffix = countEl.dataset.suffix || '';
+    countEl.textContent = String(total).padStart(2, '0') + ' ' + suffix;
+  });
+}
+
+function setupListSearch(){
+  document.querySelectorAll('.list-search').forEach((input) => {
+    input.addEventListener('input', () => {
+      const section = input.closest('.list-section');
+      if(!section) return;
+      const query = input.value.trim().toLowerCase();
+      section.querySelectorAll('.track').forEach((track) => {
+        const name = track.querySelector('.track-name')?.textContent.toLowerCase() || '';
+        track.classList.toggle('search-hidden', query.length > 0 && !name.includes(query));
+      });
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const fileInput = document.getElementById('fileInput');
   if(fileInput){
@@ -215,6 +240,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if(isNewUser && user){
     openNicknameModal(user.nickname);
   }
+
+  updateListCounts();
+  setupListSearch();
+  document.querySelectorAll('.track-scroll').forEach((trackScroll) => {
+    new MutationObserver(updateListCounts).observe(trackScroll, { childList: true });
+  });
 });
 
 function toggleFav(event, btn){
