@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Band-Age — 로비</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="frame">
+    <div class="topbar">
+      <div class="brand-dots"><span></span><span></span><span></span></div>
+      <div class="topbar-title">Band-Age — 로비</div>
+      <div class="topbar-right">
+        <button class="link-btn" onclick="openModal('login')">로그인</button>
+        <button class="link-btn" onclick="openModal('signup')">회원가입</button>
+      </div>
+    </div>
+
+    <div class="body-grid">
+      <!-- LEFT -->
+      <div class="col col-left">
+        <p class="logo">Band-Age</p>
+
+        <p class="block-label">데모 영상</p>
+        <div class="video-box" id="videoBox" onclick="toggleVideo()">
+          <svg viewBox="0 0 400 225" preserveAspectRatio="none">
+            <line class="diag" x1="220" y1="0" x2="140" y2="90"></line>
+            <line class="diag" x1="260" y1="135" x2="180" y2="225"></line>
+          </svg>
+          <div class="video-play"></div>
+          <div class="video-caption">DEMO · 0:42</div>
+        </div>
+
+        <div class="about-box">
+          <p>노래 한 곡을 올리면 <strong>6인조 밴드</strong>가 그 곡을 라이브로 연주합니다.</p>
+          <p>보컬 · 드럼 · 베이스 · 기타 · 피아노 · DJ — 박자와 강세에 맞춰 실시간으로 움직여요.</p>
+          <p>직접 데모를 눌러보고, 마음에 들면 내 곡을 올려서 밴드를 무대에 세워보세요.</p>
+        </div>
+
+        <div class="board-box">
+          <p class="block-label">사용자 게시판 <span class="n">RECENT</span></p>
+          <div class="board-row"><span class="idx">01</span><span class="t">6-source 분리 모델 적용 후기 공유해요</span><span
+              class="m">08.09</span></div>
+          <div class="board-row"><span class="idx">02</span><span class="t">드럼 타이밍 튜닝 팁 있으신 분 계신가요</span><span
+              class="m">08.08</span></div>
+          <div class="board-row"><span class="idx">03</span><span class="t">커스텀 트랙 업로드 용량 제한 문의드립니다</span><span
+              class="m">08.07</span></div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="col col-right">
+        <div class="list-panel">
+          <div class="list-section">
+            <div class="panel-head">
+              <h2>데모 리스트</h2><span class="count">03 TRACKS</span>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">데모 트랙 01</span>
+              <span class="track-time">3:12</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">데모 트랙 02</span>
+              <span class="track-time">2:48</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">데모 트랙 03</span>
+              <span class="track-time">4:05</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track track-extra">
+              <span class="track-name">데모 트랙 04</span>
+              <span class="track-time">3:45</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+          </div>
+
+          <div class="list-section">
+            <div class="panel-head">
+              <h2>내 커스텀</h2><span class="count">03 SAVED</span>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">커스텀 트랙 01</span>
+              <span class="track-time">2:55</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">커스텀 트랙 02</span>
+              <span class="track-time">3:30</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track" onclick="toggleTrack(this)">
+              <span class="track-name">커스텀 트랙 03</span>
+              <span class="track-time">4:10</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+            <div class="track track-extra">
+              <span class="track-name">커스텀 트랙 04</span>
+              <span class="track-time">2:20</span>
+              <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+              <button class="play-btn">▷</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="panel myupload-row">
+          <span class="label"> MY SONG ♪</span>
+          <div>
+            <button class="upload-btn" onclick="triggerUpload()">+ 업로드</button>
+            <input type="file" id="fileInput" accept="audio/*" style="display:none">
+          </div>
+        </div>
+
+        <div class="cta-bar" onclick="showToast('메인 스테이지로 이동합니다 →')">
+          <div class="play-circle">▶</div>
+          <div>
+            <div class="cta-text">지금 무대 시작하기</div>
+            <div class="cta-sub">LIVE STAGE · 6 MEMBERS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="overlay" id="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+      <button class="close" onclick="closeModal()">✕</button>
+      <h3 id="modalTitle">로그인</h3>
+      <p id="modalSub">밴드가 당신을 기다리고 있어요.</p>
+      <input type="text" placeholder="이메일">
+      <input type="password" placeholder="비밀번호">
+      <button class="submit" onclick="closeModal(); showToast('로그인 되었습니다 (데모)')">계속하기</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
