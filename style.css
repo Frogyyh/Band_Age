@@ -228,7 +228,14 @@ body{
   font-family:'Space Grotesk',sans-serif; transition:background .12s ease;
 }
 .modal .submit:hover{ background:var(--orange); border-color:var(--orange); color:var(--ink); }
+.modal .kakao-submit{
+  background:#FEE500; color:#191600; border-color:#FEE500; margin-top:8px;
+}
+.modal .kakao-submit:hover{ background:#f5d900; border-color:#f5d900; color:#191600; }
 .modal .close{
   position:absolute; top:14px; right:16px; background:none; border:none;
   color:var(--mute); font-size:16px; cursor:pointer;
+}
+.auth-error{
+  font-size:12px; color:#d64545; margin:-6px 0 12px !important;
 }

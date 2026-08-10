@@ -29,10 +29,12 @@ const userSchema = new mongoose.Schema(
       enum: ['local', 'google', 'kakao'],
       default: 'local',
     },
-    // SNS 로그인 시 발급되는 외부 계정 식별자 (예: Google sub, Kakao id 값)
+    // SNS 로그인 시 발급되는 외부 계정 식별자 (예: Google sub, Kakao id 값).
+    // 로컬 가입 사용자는 이 필드를 아예 비워둬야 한다 — sparse 유니크 인덱스가
+    // "필드 없음"만 건너뛰고 null 값은 중복으로 취급하기 때문에, default: null을
+    // 쓰면 두 번째 로컬 가입부터 E11000 duplicate key로 죽는다.
     providerId: {
       type: String,
-      default: null,
     },
     favoriteSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
     uploadedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
@@ -40,6 +42,13 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.index({ provider: 1, providerId: 1 }, { unique: true, sparse: true });
+// sparse가 아니라 partialFilterExpression을 쓴다: 복합 sparse 인덱스는
+// "인덱싱 대상 필드가 전부 없는 문서"만 건너뛰는데, provider는 로컬 사용자도
+// 항상 값이 있어서 절대 건너뛰어지지 않는다. partialFilterExpression은
+// providerId가 있는(SNS) 문서만 정확히 골라 인덱싱한다.
+userSchema.index(
+  { provider: 1, providerId: 1 },
+  { unique: true, partialFilterExpression: { providerId: { $exists: true } } }
+);
 
 export default mongoose.model('User', userSchema);

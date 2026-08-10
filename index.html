@@ -18,7 +18,7 @@
     <div class="topbar">
       <div class="brand-dots"><span></span><span></span><span></span></div>
       <div class="topbar-title">Band-Age — 로비</div>
-      <div class="topbar-right">
+      <div class="topbar-right" id="authArea">
         <button class="link-btn" onclick="openModal('login')">로그인</button>
         <button class="link-btn" onclick="openModal('signup')">회원가입</button>
       </div>
@@ -151,9 +151,23 @@
       <button class="close" onclick="closeModal()">✕</button>
       <h3 id="modalTitle">로그인</h3>
       <p id="modalSub">밴드가 당신을 기다리고 있어요.</p>
-      <input type="text" placeholder="이메일">
-      <input type="password" placeholder="비밀번호">
-      <button class="submit" onclick="closeModal(); showToast('로그인 되었습니다 (데모)')">계속하기</button>
+      <p id="authError" class="auth-error" style="display:none"></p>
+      <input type="text" id="authUsername" placeholder="아이디">
+      <input type="text" id="authNickname" placeholder="닉네임" style="display:none">
+      <input type="password" id="authPassword" placeholder="비밀번호">
+      <button class="submit" id="authSubmit" onclick="submitAuth()">계속하기</button>
+      <button class="submit kakao-submit" onclick="loginWithKakao()">카카오로 시작하기</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="nicknameOverlay">
+    <div class="modal">
+      <h3>닉네임 설정</h3>
+      <p>카카오 계정으로 처음 가입하셨네요! 사용하실 닉네임을 정해주세요.</p>
+      <p id="nicknameError" class="auth-error" style="display:none"></p>
+      <input type="text" id="newNickname" placeholder="닉네임">
+      <button class="submit" onclick="submitNickname()">완료</button>
+      <button class="link-btn" style="width:100%; text-align:center; margin-top:8px;" onclick="closeNicknameModal()">나중에 할게요</button>
     </div>
   </div>
 

@@ -33,7 +33,7 @@ export async function kakaoCallback(req, res) {
   const { code, error } = req.query;
 
   if (error || !code) {
-    return res.redirect(`${frontendBase}/login?error=kakao_denied`);
+    return res.redirect(`${frontendBase}/?error=kakao_denied`);
   }
 
   try {
@@ -46,6 +46,7 @@ export async function kakaoCallback(req, res) {
       `카카오사용자${kakaoId.slice(-4)}`;
 
     let user = await User.findOne({ provider: 'kakao', providerId: kakaoId });
+    let isNewUser = false;
     if (!user) {
       user = await User.create({
         username: `kakao_${kakaoId}`,
@@ -53,13 +54,16 @@ export async function kakaoCallback(req, res) {
         provider: 'kakao',
         providerId: kakaoId,
       });
+      isNewUser = true;
     }
 
     const token = generateToken(user._id);
-    // 프론트엔드는 /oauth/callback 라우트에서 쿼리스트링의 token을 읽어 저장해야 한다.
-    res.redirect(`${frontendBase}/oauth/callback?token=${token}`);
+    // 프론트엔드(index.html)는 로드 시 쿼리스트링의 token(+newUser)을 읽어 저장해야 한다.
+    // newUser=1이면 프론트에서 닉네임 설정 모달을 띄운다 (지금은 카카오 닉네임이 기본값으로 들어가 있음).
+    const newUserFlag = isNewUser ? '&newUser=1' : '';
+    res.redirect(`${frontendBase}/?token=${token}${newUserFlag}`);
   } catch (err) {
     console.error('Kakao login failed:', err);
-    res.redirect(`${frontendBase}/login?error=kakao_failed`);
+    res.redirect(`${frontendBase}/?error=kakao_failed`);
   }
 }
