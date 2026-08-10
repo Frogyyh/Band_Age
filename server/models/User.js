@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 30,
     },
+    avatarUrl: {
+      type: String,
+      default: null,
+    },
     provider: {
       type: String,
       enum: ['local', 'google', 'kakao'],
@@ -36,6 +40,11 @@ const userSchema = new mongoose.Schema(
     providerId: {
       type: String,
     },
+    // 탈퇴 시 카카오톡 "나에게 보내기"로 알림을 보내기 위해 보관한다.
+    // 로그인마다 갱신되고, 절대 일반 조회 응답에는 포함되지 않는다.
+    kakaoAccessToken: { type: String, select: false },
+    kakaoRefreshToken: { type: String, select: false },
+    kakaoTokenExpiresAt: { type: Date, select: false },
     favoriteSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
     uploadedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Song' }],
   },

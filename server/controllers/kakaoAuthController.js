@@ -37,13 +37,18 @@ export async function kakaoCallback(req, res) {
   }
 
   try {
-    const accessToken = await exchangeKakaoCode(code);
-    const profile = await fetchKakaoProfile(accessToken);
+    const tokenData = await exchangeKakaoCode(code);
+    const profile = await fetchKakaoProfile(tokenData.access_token);
     const kakaoId = String(profile.id);
     const nickname =
       profile.kakao_account?.profile?.nickname ||
       profile.properties?.nickname ||
       `카카오사용자${kakaoId.slice(-4)}`;
+    const tokenFields = {
+      kakaoAccessToken: tokenData.access_token,
+      kakaoRefreshToken: tokenData.refresh_token,
+      kakaoTokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
+    };
 
     let user = await User.findOne({ provider: 'kakao', providerId: kakaoId });
     let isNewUser = false;
@@ -53,8 +58,13 @@ export async function kakaoCallback(req, res) {
         nickname,
         provider: 'kakao',
         providerId: kakaoId,
+        ...tokenFields,
       });
       isNewUser = true;
+    } else {
+      // 탈퇴 시 카카오톡 메시지를 보내려면 최신 토큰이 필요하니 로그인마다 갱신한다.
+      Object.assign(user, tokenFields);
+      await user.save();
     }
 
     const token = generateToken(user._id);

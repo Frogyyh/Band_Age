@@ -1,8 +1,13 @@
 import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
+import postRoutes from './routes/postRoutes.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // User 스키마가 Song을 populate()로 참조하므로, 실제로 쓰이지 않더라도
 // 모델이 한 번은 로드되어 mongoose에 등록되어 있어야 한다.
 import './models/Song.js';
@@ -40,9 +45,11 @@ app.use(
   })
 );
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
+app.use('/api/posts', postRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Not found' });
