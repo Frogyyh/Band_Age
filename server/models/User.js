@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      minlength: 3,
+      minlength: 4,
       maxlength: 30,
     },
     // 로컬 회원가입 사용자만 필요. SNS(구글 등) 로그인 사용자는 비밀번호가 없음.

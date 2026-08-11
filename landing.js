@@ -46,6 +46,8 @@ form.addEventListener('submit',async event=>{
   const nickname=nicknameInput.value.trim();
   const password=passwordInput.value;
   if(!username||!password)return showError('아이디와 비밀번호를 입력하세요.');
+  if(username.length<4)return showError('아이디는 4글자 이상 입력해주세요.');
+  if(!/[A-Za-z]/.test(username))return showError('아이디는 영문을 포함해야 해요.');
   if(mode==='signup'&&!nickname)return showError('닉네임을 입력하세요.');
   submitButton.disabled=true;
   errorBox.hidden=true;

@@ -22,6 +22,12 @@ export async function register(req, res, next) {
     if (!username || !password || !nickname) {
       return res.status(400).json({ message: 'username, password, nickname은 필수입니다.' });
     }
+    if (username.length < 4) {
+      return res.status(400).json({ message: '아이디는 4글자 이상 입력해주세요.' });
+    }
+    if (!/[A-Za-z]/.test(username)) {
+      return res.status(400).json({ message: '아이디는 영문을 포함해야 해요.' });
+    }
     if (password.length < 8) {
       return res.status(400).json({ message: '비밀번호는 8자 이상이어야 합니다.' });
     }

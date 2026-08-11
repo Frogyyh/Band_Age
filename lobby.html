@@ -23,10 +23,7 @@
       <div class="topbar-title">Band-Age — 로비</div>
       <div class="topbar-right">
         <a class="link-btn" href="/">시작 화면</a>
-        <span id="authArea">
-          <button class="link-btn" onclick="openModal('login')">로그인</button>
-          <button class="link-btn" onclick="openModal('signup')">회원가입</button>
-        </span>
+        <button class="link-btn" onclick="openProfileModal()">마이페이지</button>
       </div>
     </div>
 
@@ -63,7 +60,7 @@
       <!-- RIGHT -->
       <div class="col col-right">
         <div class="list-panel">
-          <div class="list-section">
+          <div class="list-section" data-list="demo">
             <div class="panel-head">
               <div class="panel-head-left">
                 <h2>데모 리스트</h2>
@@ -72,40 +69,40 @@
               <span class="count" data-suffix="TRACKS">00 TRACKS</span>
             </div>
             <div class="track-scroll">
-              <div class="track" onclick="toggleTrack(this)">
+              <div class="track" onclick="selectTrack(this)">
                 <span class="track-name">데모 트랙 01</span>
                 <span class="track-time">3:12</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
+                <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
               </div>
-              <div class="track" onclick="toggleTrack(this)">
+              <div class="track" onclick="selectTrack(this)">
                 <span class="track-name">데모 트랙 02</span>
                 <span class="track-time">2:48</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
+                <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
               </div>
-              <div class="track" onclick="toggleTrack(this)">
+              <div class="track" onclick="selectTrack(this)">
                 <span class="track-name">데모 트랙 03</span>
                 <span class="track-time">4:05</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
+                <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
               </div>
-              <div class="track track-extra">
+              <div class="track track-extra" onclick="selectTrack(this)">
                 <span class="track-name">데모 트랙 04</span>
                 <span class="track-time">3:45</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
+                <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
               </div>
             </div>
           </div>
 
-          <div class="list-section">
+          <div class="list-section" data-list="custom">
             <div class="panel-head">
               <div class="panel-head-left">
                 <h2>사용자의 커스텀</h2>
                 <input type="text" class="list-search" placeholder="검색" aria-label="사용자의 커스텀 검색">
               </div>
-              <span class="count" data-suffix="SAVED">00 SAVED</span>
+              <div class="panel-head-right">
+                <button class="add-custom-btn" onclick="triggerCustomUpload()" aria-label="커스텀 트랙 업로드">+</button>
+                <span class="count" data-suffix="SAVED">00 SAVED</span>
+                <input type="file" id="customFileInput" accept="audio/*" style="display:none">
+              </div>
             </div>
             <div class="track-scroll" id="customTrackList">
               <div class="track-empty">로그인 후 이용할 수 있어요.</div>
@@ -116,13 +113,15 @@
 
         <div class="panel myupload-row">
           <span class="label"> MY SONG ♪</span>
-          <div>
-            <button class="upload-btn" onclick="triggerUpload()">+ 업로드</button>
+          <div class="myupload-actions">
+            <span class="myupload-filename" id="mySongFilename" style="display:none"></span>
+            <button class="upload-btn" id="mySongUploadBtn" onclick="triggerUpload()">+ 업로드</button>
+            <button class="myupload-cancel-btn" id="mySongCancelBtn" onclick="cancelMySongUpload()" aria-label="MY SONG 업로드 취소" style="display:none">✕</button>
             <input type="file" id="fileInput" accept="audio/*" style="display:none">
           </div>
         </div>
 
-        <div class="cta-bar" onclick="showLoading()">
+        <div class="cta-bar" onclick="startStage()">
           <div class="play-circle">▶</div>
           <div>
             <div class="cta-text">지금 무대 시작하기</div>
@@ -172,6 +171,7 @@
   <div class="overlay" id="profileOverlay" onclick="if(event.target===this) closeProfileModal()">
     <div class="modal board-modal mypage-modal">
       <button class="close" onclick="closeProfileModal()">✕</button>
+      <button class="link-btn" style="position:absolute; top:18px; right:52px; font-size:12px;" onclick="logout()">로그아웃</button>
       <h3>마이페이지</h3>
       <div class="profile-avatar-row">
         <div id="profileAvatarPreview"></div>

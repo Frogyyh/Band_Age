@@ -33,6 +33,7 @@ export async function uploadSongFile(req, res, next) {
       fileUrl: `/uploads/songs/${req.file.filename}`,
       duration: Number.isFinite(duration) && duration > 0 ? duration : null,
       uploader: req.user._id,
+      uploaderNickname: req.user.nickname,
     });
 
     await User.updateOne({ _id: req.user._id }, { $push: { uploadedSongs: song._id } });

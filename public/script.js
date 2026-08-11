@@ -1,14 +1,94 @@
-function toggleTrack(el){
+// 트랙 클릭 = 무대에 쓸 곡으로 선택, 재생 버튼 = 미리듣기. 둘을 분리해서
+// 재생 버튼을 눌러도 선택 상태가 안 바뀌게 한다(이벤트는 각 onclick에서 stopPropagation).
+let previewAudio = null;
+function previewTrack(el){
   const wasPlaying = el.classList.contains('playing');
   document.querySelectorAll('.track').forEach(t=>{
     t.classList.remove('playing');
     t.querySelector('.play-btn').textContent = '▷';
   });
-  if(!wasPlaying){
-    el.classList.add('playing');
-    el.querySelector('.play-btn').textContent = '❚❚';
-    showToast('▶ ' + el.querySelector('.track-name').textContent.trim() + ' 재생 중 (데모)');
+  if(previewAudio){
+    previewAudio.pause();
+    previewAudio = null;
   }
+  if(wasPlaying) return;
+
+  el.classList.add('playing');
+  el.querySelector('.play-btn').textContent = '❚❚';
+  const trackName = el.querySelector('.track-name').textContent.trim();
+  const audioSrc = el.dataset.audioSrc;
+
+  if(audioSrc){
+    previewAudio = new Audio(audioSrc);
+    previewAudio.addEventListener('ended', () => {
+      el.classList.remove('playing');
+      el.querySelector('.play-btn').textContent = '▷';
+      previewAudio = null;
+    });
+    previewAudio.play();
+    showToast('▶ ' + trackName + ' 재생 중');
+  } else {
+    showToast('▶ ' + trackName + ' 재생 중 (데모)');
+  }
+}
+
+/* ---------- 무대 시작용 음원 선택 ---------- */
+let selectedTrackEl = null;
+let mySongFile = null;
+
+function selectTrack(el){
+  if(selectedTrackEl === el){
+    el.classList.remove('selected');
+    selectedTrackEl = null;
+    return;
+  }
+  if(selectedTrackEl){
+    selectedTrackEl.classList.remove('selected');
+  }
+  el.classList.add('selected');
+  selectedTrackEl = el;
+}
+
+function setMySongFile(file){
+  mySongFile = file;
+  const filenameEl = document.getElementById('mySongFilename');
+  filenameEl.textContent = file.name;
+  filenameEl.style.display = '';
+  document.getElementById('mySongUploadBtn').style.display = 'none';
+  document.getElementById('mySongCancelBtn').style.display = '';
+  showToast('"' + file.name + '" MY SONG에 업로드됨 (음원 분리 서버 연동 예정)');
+}
+
+function cancelMySongUpload(){
+  mySongFile = null;
+  document.getElementById('fileInput').value = '';
+  const filenameEl = document.getElementById('mySongFilename');
+  filenameEl.textContent = '';
+  filenameEl.style.display = 'none';
+  document.getElementById('mySongUploadBtn').style.display = '';
+  document.getElementById('mySongCancelBtn').style.display = 'none';
+}
+
+function startStage(){
+  const count = (selectedTrackEl ? 1 : 0) + (mySongFile ? 1 : 0);
+  if(count === 0){
+    showToast('MY SONG 업로드 또는 트랙 선택 중 하나로 음원을 골라주세요.');
+    return;
+  }
+  if(count > 1){
+    showToast('음원은 하나만 선택해주세요 (트랙 선택 또는 MY SONG 업로드 중 하나만).');
+    return;
+  }
+  showLoading();
+}
+
+function triggerCustomUpload(){
+  if(!currentUser){
+    showToast('커스텀 트랙 업로드는 로그인 후 이용할 수 있어요.');
+    openModal('login');
+    return;
+  }
+  document.getElementById('customFileInput').click();
 }
 
 function toggleVideo(){
@@ -104,6 +184,14 @@ async function submitAuth(){
     showAuthError('아이디와 비밀번호를 입력하세요.');
     return;
   }
+  if(username.length < 4){
+    showAuthError('아이디는 4글자 이상 입력해주세요.');
+    return;
+  }
+  if(!/[A-Za-z]/.test(username)){
+    showAuthError('아이디는 영문을 포함해야 해요.');
+    return;
+  }
   if(authMode === 'signup' && !nickname){
     showAuthError('닉네임을 입력하세요.');
     return;
@@ -157,8 +245,7 @@ function handleAuthRedirect(){
 
 function logout(){
   localStorage.removeItem('band_age_token');
-  renderAuthArea(null);
-  showToast('로그아웃 되었습니다.');
+  window.location.href = '/';
 }
 
 function avatarHtml(user, extraClass){
@@ -172,21 +259,6 @@ function avatarHtml(user, extraClass){
 
 function renderAuthArea(user){
   currentUser = user;
-  const area = document.getElementById('authArea');
-  if(user){
-    area.innerHTML = `
-      <button class="link-btn profile-trigger" onclick="openProfileModal()">
-        ${avatarHtml(user)}
-        <span>${escapeHtml(user.nickname)}님</span>
-      </button>
-      <button class="link-btn" onclick="logout()">로그아웃</button>
-    `;
-  } else {
-    area.innerHTML = `
-      <button class="link-btn" onclick="openModal('login')">로그인</button>
-      <button class="link-btn" onclick="openModal('signup')">회원가입</button>
-    `;
-  }
   loadAllCustomSongs();
 }
 
@@ -254,7 +326,11 @@ function renderProfileAvatarPreview(){
 }
 
 function openProfileModal(){
-  if(!currentUser) return;
+  if(!currentUser){
+    showToast('로그인이 필요해요.');
+    window.location.href = '/';
+    return;
+  }
   document.getElementById('profileNickname').value = currentUser.nickname;
   document.getElementById('profileError').style.display = 'none';
   renderProfileAvatarPreview();
@@ -807,16 +883,64 @@ function renderCustomTracks(songs, containerId = 'customTrackList', scope = 'all
   }
   container.innerHTML = songs.map((song) => {
     const isOwner = currentUser && String(song.uploader) === String(currentUser.id);
+    const audioSrc = API_ORIGIN + song.fileUrl;
     return `
-    <div class="track" onclick="toggleTrack(this)">
+    <div class="track" onclick="selectTrack(this)" data-audio-src="${escapeHtml(audioSrc)}">
       <span class="track-name">${escapeHtml(song.title)}</span>
+      <span class="track-uploader">${escapeHtml(song.uploaderNickname || '')}</span>
       <span class="track-time">${formatDuration(song.duration)}</span>
-      <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-      <button class="play-btn">▷</button>
+      <button class="like-btn" onclick="toggleLike(event, this)" data-likes="0">
+        <span class="like-icon">♥</span><span class="like-count">0</span>
+      </button>
+      <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
       ${isOwner ? `<button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>` : ''}
     </div>
   `;
   }).join('');
+  sortCustomListByLikes();
+}
+
+// TODO(백엔드 연동 시): 여기서 좋아요 상태/개수를 서버(GET으로 초기 상태 불러오기,
+// POST /api/songs/:id/like 같은 걸로 토글)에 반영하도록 바꾸면 된다.
+// 지금은 로그인 여부만 체크하고, 좋아요 상태는 이 브라우저 세션에서만 유지된다(새로고침 시 초기화).
+function toggleLike(event, btn){
+  event.stopPropagation();
+  if(!localStorage.getItem('band_age_token')){
+    showToast('좋아요는 로그인 후 이용할 수 있어요.');
+    openModal('login');
+    return;
+  }
+
+  const liked = btn.classList.contains('liked');
+  const likes = parseInt(btn.dataset.likes || '0', 10) + (liked ? -1 : 1);
+  btn.dataset.likes = likes;
+  btn.classList.toggle('liked', !liked);
+  btn.querySelector('.like-count').textContent = likes;
+  sortCustomListByLikes();
+}
+
+function sortDemoListByName(){
+  const container = document.querySelector('.list-section[data-list="demo"] .track-scroll');
+  if(!container) return;
+  const tracks = Array.from(container.querySelectorAll('.track'));
+  tracks.sort((a, b) => {
+    const nameA = a.querySelector('.track-name')?.textContent.trim() || '';
+    const nameB = b.querySelector('.track-name')?.textContent.trim() || '';
+    return nameA.localeCompare(nameB, 'ko');
+  });
+  tracks.forEach((track) => container.appendChild(track));
+}
+
+function sortCustomListByLikes(){
+  const container = document.querySelector('.list-section[data-list="custom"] .track-scroll');
+  if(!container) return;
+  const tracks = Array.from(container.querySelectorAll('.track'));
+  tracks.sort((a, b) => {
+    const likesA = parseInt(a.querySelector('.like-btn')?.dataset.likes || '0', 10);
+    const likesB = parseInt(b.querySelector('.like-btn')?.dataset.likes || '0', 10);
+    return likesB - likesA;
+  });
+  tracks.forEach((track) => container.appendChild(track));
 }
 
 // 메인 화면 "사용자의 커스텀"은 전체 사용자의 업로드 곡을 보여준다 (마이페이지의 "내가 커스텀한 곡"과는 다름).
@@ -890,9 +1014,19 @@ async function handleSongUpload(file){
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // MY SONG: 무대 시작 시 쓸 원본 파일을 로컬에만 들고 있는다 (음원 분리 서버 연동 전까지는
+  // 커스텀 트랙 목록에 올리지 않음). 실제로 DB에 저장/공유되는 업로드는 customFileInput 쪽.
   const fileInput = document.getElementById('fileInput');
   if(fileInput){
     fileInput.addEventListener('change', (e)=>{
+      if(e.target.files.length){
+        setMySongFile(e.target.files[0]);
+      }
+    });
+  }
+  const customFileInput = document.getElementById('customFileInput');
+  if(customFileInput){
+    customFileInput.addEventListener('change', (e)=>{
       if(e.target.files.length){
         handleSongUpload(e.target.files[0]);
       }
@@ -911,6 +1045,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   updateListCounts();
   setupListSearch();
+  sortDemoListByName();
   document.querySelectorAll('.track-scroll').forEach((trackScroll) => {
     new MutationObserver(updateListCounts).observe(trackScroll, { childList: true });
   });

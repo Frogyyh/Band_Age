@@ -193,6 +193,16 @@ body{
 
 .panel-head-left{ display:flex; align-items:center; gap:12px; flex:1; }
 .panel-head-left h2{ min-width:92px; }
+.panel-head-right{ display:flex; align-items:center; gap:10px; }
+.add-custom-btn{
+  font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700;
+  width:24px; height:24px; padding:0; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--paper); border:2px solid var(--ink); color:var(--ink);
+  cursor:pointer; transition:background .12s ease, color .12s ease;
+}
+.add-custom-btn:hover{ background:var(--ink); color:var(--paper); }
+.add-custom-btn:focus-visible{ outline:2px solid var(--orange); outline-offset:2px; }
 .list-search{
   width:100%; max-width:220px; background:var(--paper); border:2px solid var(--ink);
   color:var(--ink); padding:5px 8px; font-size:11px;
@@ -233,6 +243,12 @@ body{
 .track.playing .play-btn{ background:var(--orange); border-color:var(--orange); }
 .track-name{ flex:1; font-size:14px; }
 .track.playing .track-name{ font-weight:700; }
+.track.selected{ background:rgba(245,166,35,0.14); }
+.track.selected .track-name{ font-weight:700; color:var(--orange); }
+.track-uploader{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute);
+  max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0;
+}
 .track-time{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--mute); width:40px; text-align:right; }
 .fav-btn{
   background:none; border:none; cursor:pointer; padding:0;
@@ -241,6 +257,15 @@ body{
 }
 .fav-btn:hover{ transform:scale(1.15); }
 .fav-btn.faved{ color:var(--orange); }
+.like-btn{
+  background:none; border:none; cursor:pointer; padding:0;
+  display:flex; align-items:center; gap:4px;
+  font-size:14px; line-height:1; color:var(--mute);
+  transition:color .12s ease, transform .12s ease;
+}
+.like-btn:hover{ color:var(--orange); transform:scale(1.08); }
+.like-btn.liked{ color:var(--orange); }
+.like-count{ font-family:'IBM Plex Mono',monospace; font-size:11px; min-width:14px; text-align:left; }
 .track-delete-btn{
   background:none; border:none; cursor:pointer; padding:0; margin-left:4px;
   font-size:13px; line-height:1; color:var(--mute);
@@ -254,12 +279,23 @@ body{
 
 .myupload-row{ display:flex; align-items:center; justify-content:space-between; padding:0; }
 .myupload-row .label{ font-size:17px; font-weight:700; }
+.myupload-actions{ display:flex; align-items:center; gap:10px; }
+.myupload-filename{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--mute);
+  max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
 .upload-btn{
   font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700;
   background:var(--paper); border:2px solid var(--ink); color:var(--ink);
   padding:9px 14px; cursor:pointer; transition:background .12s ease, color .12s ease;
 }
 .upload-btn:hover{ background:var(--ink); color:var(--paper); }
+.myupload-cancel-btn{
+  width:28px; height:28px; flex-shrink:0; font-size:13px; font-weight:700; line-height:1;
+  background:var(--paper); border:2px solid var(--ink); color:var(--ink);
+  cursor:pointer; transition:background .12s ease, color .12s ease;
+}
+.myupload-cancel-btn:hover{ background:var(--orange); border-color:var(--orange); color:var(--ink); }
 .upload-btn:focus-visible{ outline:2px solid var(--orange); outline-offset:2px; }
 
 /* big CTA bar — flex-grow so it fills any leftover height and lines up with the left column's bottom edge */
@@ -428,23 +464,28 @@ body{
 .block-label,.panel-head h2,.myupload-row .label{ color:#f5f5f2; }
 .board-row,.track,.panel-head{ border-color:#303030; }
 .board-row:hover,.track:hover{ background:#151515; }
-.board-more-btn,.board-tab,.board-write-btn,.upload-btn,.list-search{
+.board-more-btn,.board-tab,.board-write-btn,.upload-btn,.add-custom-btn,.myupload-cancel-btn,.list-search{
   border-color:#444;
   background:#0b0b0b;
   color:#f5f5f2;
 }
-.board-more-btn:hover,.board-tab.active,.upload-btn:hover{
+.board-more-btn:hover,.board-tab.active,.upload-btn:hover,.add-custom-btn:hover{
   background:#f5f5f2;
   color:#070707;
   border-color:#f5f5f2;
 }
+.myupload-cancel-btn:hover{ background:var(--orange); border-color:var(--orange); color:#070707; }
+.myupload-filename{ color:#c9c9c6; }
 .play-btn{
   border:1px solid #555;
   background:#111;
   color:#fff;
 }
 .track.playing .play-btn{ background:#fff; border-color:#fff; color:#000; }
+.track.selected{ background:rgba(197,167,123,0.16); }
+.track.selected .track-name{ color:var(--orange); }
 .fav-btn.faved,.fav-btn:hover{ color:var(--orange); }
+.like-btn.liked,.like-btn:hover{ color:var(--orange); }
 .cta-bar{
   border:1px solid #e6e6e2;
   background:#f1f1ee;
