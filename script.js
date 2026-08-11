@@ -154,6 +154,7 @@ function renderAuthArea(user){
       <button class="link-btn" onclick="openModal('signup')">회원가입</button>
     `;
   }
+  loadMySongs();
 }
 
 async function checkSession(){
@@ -444,19 +445,32 @@ function reorderWithHotFirst(posts){
   return [hot, ...posts];
 }
 
-function renderBoardRows(containerId, posts, offset = 0){
+function postExcerpt(content, max = 60){
+  const clean = content.replace(/\s+/g, ' ').trim();
+  return clean.length > max ? clean.slice(0, max) + '…' : clean;
+}
+
+function renderBoardRows(containerId, posts){
   const container = document.getElementById(containerId);
   if(!posts.length){
     container.innerHTML = '<div class="board-row"><span class="t">아직 게시물이 없어요.</span></div>';
     return;
   }
-  container.innerHTML = posts.map((post, i) => `
+  container.innerHTML = posts.map((post) => {
+    const isOwner = currentUser && String(post.author) === String(currentUser.id);
+    return `
     <div class="board-row" onclick="openPostDetail('${post._id}')">
-      <span class="idx">${String(offset + i + 1).padStart(2, '0')}</span>
-      <span class="t">${post._id === hotPostId ? '<span class="hot">HOT</span>' : ''}${escapeHtml(post.title)}</span>
-      <span class="m">조회 ${post.views} · ${formatPostDate(post.createdAt)}</span>
+      <div class="board-row-top">
+        ${avatarHtml({ avatarUrl: post.authorAvatarUrl, nickname: post.authorNickname }, 'avatar-small')}
+        <span class="board-nickname">${escapeHtml(post.authorNickname)}</span>
+        <span class="board-meta">조회 ${post.views} · ${formatPostDate(post.createdAt)}</span>
+        ${isOwner ? `<button class="board-delete-btn" onclick="event.stopPropagation(); deletePost('${post._id}')" aria-label="삭제">✕</button>` : ''}
+      </div>
+      <div class="board-row-title">${post._id === hotPostId ? '<span class="hot">HOT</span>' : ''}${escapeHtml(post.title)}</div>
+      <div class="board-row-excerpt">${escapeHtml(postExcerpt(post.content))}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function refreshHotPost(){
@@ -476,7 +490,7 @@ async function loadBoardPreview(){
     renderBoardRows('boardPreview', posts.slice(0, 3));
   } catch(err){
     document.getElementById('boardPreview').innerHTML =
-      '<div class="board-row"><span class="t">게시판을 불러올 수 없어요.</span></div>';
+      '<div class="board-row"><span class="t">방명록을 불러올 수 없어요.</span></div>';
   }
 }
 
@@ -496,7 +510,7 @@ function renderBoardPagination(){
 
 function renderCurrentBoardPage(){
   const start = (boardPage - 1) * POSTS_PER_PAGE;
-  renderBoardRows('boardFullList', boardPosts.slice(start, start + POSTS_PER_PAGE), start);
+  renderBoardRows('boardFullList', boardPosts.slice(start, start + POSTS_PER_PAGE));
   renderBoardPagination();
 }
 
@@ -514,7 +528,7 @@ async function loadBoardFullList(){
     boardPage = 1;
     renderCurrentBoardPage();
   } catch(err){
-    container.innerHTML = '<div class="board-row"><span class="t">게시판을 불러올 수 없어요.</span></div>';
+    container.innerHTML = '<div class="board-row"><span class="t">방명록을 불러올 수 없어요.</span></div>';
     document.getElementById('boardPagination').innerHTML = '';
   }
 }
@@ -543,7 +557,14 @@ function toggleWriteForm(){
     return;
   }
   const form = document.getElementById('writeForm');
-  form.style.display = form.style.display === 'none' ? '' : 'none';
+  const opening = form.style.display === 'none';
+  form.style.display = opening ? '' : 'none';
+  if(opening && currentUser){
+    document.getElementById('writeFormAuthor').innerHTML = `
+      ${avatarHtml(currentUser, 'avatar-small')}
+      <span class="board-nickname">${escapeHtml(currentUser.nickname)}</span>
+    `;
+  }
 }
 
 async function submitPost(){
@@ -584,15 +605,27 @@ async function submitPost(){
   }
 }
 
+let currentPostDetailId = null;
+
 async function openPostDetail(id){
   try{
     const res = await fetch(API_BASE + '/posts/' + id);
     if(!res.ok) return;
     const post = await res.json();
+    currentPostDetailId = post._id;
+
+    document.getElementById('postDetailAuthor').innerHTML = `
+      ${avatarHtml({ avatarUrl: post.authorAvatarUrl, nickname: post.authorNickname }, 'avatar-small')}
+      <span class="board-nickname">${escapeHtml(post.authorNickname)}</span>
+    `;
     document.getElementById('postDetailTitle').textContent = post.title;
     document.getElementById('postDetailMeta').textContent =
-      `${post.authorNickname} · ${formatPostDate(post.createdAt)} · 조회 ${post.views}`;
+      `${formatPostDate(post.createdAt)} · 조회 ${post.views}`;
     document.getElementById('postDetailContent').textContent = post.content;
+
+    const isOwner = currentUser && String(post.author) === String(currentUser.id);
+    document.getElementById('postDetailDeleteBtn').style.display = isOwner ? '' : 'none';
+
     document.getElementById('postDetailOverlay').classList.add('show');
 
     // 조회수가 올랐으니 Hot 배지/목록도 최신 상태로 갱신한다.
@@ -607,6 +640,33 @@ async function openPostDetail(id){
 }
 function closePostDetail(){
   document.getElementById('postDetailOverlay').classList.remove('show');
+  currentPostDetailId = null;
+}
+
+async function deletePost(id, fromDetail){
+  if(!id) return;
+  if(!confirm('이 게시물을 삭제하시겠어요?')) return;
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/posts/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){
+      showToast(data.message || '삭제하지 못했습니다.');
+      return;
+    }
+    if(fromDetail) closePostDetail();
+    showToast('게시물이 삭제되었습니다.');
+    await refreshHotPost();
+    await loadBoardPreview();
+    if(document.getElementById('boardOverlay').classList.contains('show')){
+      await loadBoardFullList();
+    }
+  } catch(err){
+    showToast('서버에 연결할 수 없습니다.');
+  }
 }
 
 function updateListCounts(){
@@ -634,13 +694,134 @@ function setupListSearch(){
   });
 }
 
+function formatDuration(seconds){
+  if(!seconds || !Number.isFinite(seconds)) return '-';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function readAudioDuration(file){
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
+}
+
+function renderCustomTracks(songs){
+  const container = document.getElementById('customTrackList');
+  if(!container) return;
+  if(!currentUser){
+    container.innerHTML = '<div class="track-empty">로그인 후 이용할 수 있어요.</div>';
+    return;
+  }
+  if(!songs.length){
+    container.innerHTML = '<div class="track-empty">업로드한 트랙이 없어요.</div>';
+    return;
+  }
+  container.innerHTML = songs.map((song) => `
+    <div class="track" onclick="toggleTrack(this)">
+      <span class="track-name">${escapeHtml(song.title)}</span>
+      <span class="track-time">${formatDuration(song.duration)}</span>
+      <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
+      <button class="play-btn">▷</button>
+      <button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>
+    </div>
+  `).join('');
+}
+
+async function loadMySongs(){
+  const container = document.getElementById('customTrackList');
+  if(!container) return;
+  if(!currentUser){
+    renderCustomTracks([]);
+    return;
+  }
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/songs/mine', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if(!res.ok){
+      renderCustomTracks([]);
+      return;
+    }
+    renderCustomTracks(await res.json());
+  } catch(err){
+    container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
+  }
+}
+
+async function deleteSong(id){
+  if(!confirm('이 트랙을 삭제하시겠어요?')) return;
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/songs/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){
+      showToast(data.message || '삭제하지 못했습니다.');
+      return;
+    }
+    showToast('트랙이 삭제되었습니다.');
+    loadMySongs();
+  } catch(err){
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
+async function handleSongUpload(file){
+  if(!currentUser){
+    showToast('로그인 후 업로드할 수 있어요.');
+    openModal('login');
+    return;
+  }
+  const token = localStorage.getItem('band_age_token');
+  const duration = await readAudioDuration(file);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+  if(duration) formData.append('duration', String(Math.round(duration)));
+
+  showToast('"' + file.name + '" 업로드 중...');
+  try{
+    const res = await fetch(API_BASE + '/songs', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+    if(!res.ok){
+      showToast(data.message || '업로드에 실패했습니다.');
+      return;
+    }
+    showToast('"' + data.title + '" 업로드 완료!');
+    loadMySongs();
+  } catch(err){
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const fileInput = document.getElementById('fileInput');
   if(fileInput){
     fileInput.addEventListener('change', (e)=>{
       if(e.target.files.length){
-        showToast('"' + e.target.files[0].name + '" 업로드 준비됨 (음원 분리 서버 연동 예정)');
+        handleSongUpload(e.target.files[0]);
       }
+      e.target.value = '';
     });
   }
   const isNewUser = new URLSearchParams(window.location.search).get('newUser') === '1';

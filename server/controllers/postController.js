@@ -22,6 +22,7 @@ export async function createPost(req, res, next) {
       content: content.trim(),
       author: req.user._id,
       authorNickname: req.user.nickname,
+      authorAvatarUrl: req.user.avatarUrl || null,
     });
     res.status(201).json(post);
   } catch (err) {
@@ -36,6 +37,22 @@ export async function getPost(req, res, next) {
       return res.status(404).json({ message: '게시물을 찾을 수 없습니다.' });
     }
     res.json(post);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deletePost(req, res, next) {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ message: '게시물을 찾을 수 없습니다.' });
+    }
+    if (post.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: '본인이 작성한 게시물만 삭제할 수 있습니다.' });
+    }
+    await Post.deleteOne({ _id: post._id });
+    res.json({ message: '게시물이 삭제되었습니다.' });
   } catch (err) {
     next(err);
   }

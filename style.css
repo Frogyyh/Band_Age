@@ -47,7 +47,7 @@ body{
 .brand-dots span{
   width:16px; height:16px; border-radius:50%; border:2px solid var(--ink); display:inline-block;
 }
-.topbar-title{ font-weight:700; font-size:16px; letter-spacing:0.01em; }
+.topbar-title{ font-weight:700; font-size:22px; letter-spacing:0.01em; }
 .topbar-right{ display:flex; align-items:center; gap:14px; }
 .link-btn{
   background:none; border:none; font-family:'Space Grotesk',sans-serif;
@@ -115,19 +115,31 @@ body{
 }
 .board-box .block-label{ margin-bottom:16px; }
 .board-row{
-  display:flex; align-items:center; gap:14px;
-  padding:13px 0; border-bottom:2px dotted var(--ink);
-  font-size:13px;
+  padding:14px 0; border-bottom:2px dotted var(--ink);
+  font-size:13px; cursor:pointer;
 }
 .board-row:last-child{ border-bottom:none; }
-.board-row .idx{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute); width:20px; }
-.board-row .t{ flex:1; }
-.board-row .m{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute); white-space:nowrap; }
-.board-row{ cursor:pointer; }
-.board-row .hot{
+.board-row-top{
+  display:flex; align-items:center; gap:8px; margin-bottom:8px;
+}
+.board-nickname{ font-size:12px; font-weight:700; }
+.board-meta{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute);
+  white-space:nowrap; margin-left:auto;
+}
+.board-delete-btn{
+  background:none; border:none; color:var(--mute); font-size:13px;
+  cursor:pointer; padding:0 0 0 4px; line-height:1;
+}
+.board-delete-btn:hover{ color:#c0392b; }
+.board-row-title{ font-weight:700; margin-bottom:4px; }
+.board-row-title .hot{
   font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
   color:var(--paper); background:var(--orange); padding:2px 6px; margin-right:6px;
 }
+.board-row-excerpt{ font-size:12px; color:var(--mute); }
+
+.post-detail-author{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
 .board-more-btn{
   width:100%; margin-top:12px; background:none; border:2px dashed var(--ink);
   padding:9px; cursor:pointer; font-size:12px; font-family:'Space Grotesk',sans-serif;
@@ -177,16 +189,16 @@ body{
 .panel-head h2{ font-size:17px; font-weight:700; margin:0; }
 .panel-head .count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--mute); white-space:nowrap; }
 
-.panel-head-left{ display:flex; align-items:center; gap:12px; }
+.panel-head-left{ display:flex; align-items:center; gap:12px; flex:1; }
 .panel-head-left h2{ min-width:92px; }
 .list-search{
-  width:96px; background:var(--paper); border:2px solid var(--ink);
+  width:100%; max-width:220px; background:var(--paper); border:2px solid var(--ink);
   color:var(--ink); padding:5px 8px; font-size:11px;
   font-family:'IBM Plex Mono',monospace; letter-spacing:0.02em;
-  transition:width .15s ease, border-color .15s ease;
+  transition:border-color .15s ease;
 }
 .list-search::placeholder{ color:var(--mute); }
-.list-search:focus{ outline:none; border-color:var(--orange); width:130px; }
+.list-search:focus{ outline:none; border-color:var(--orange); }
 
 /* combined list panel: 데모 리스트 + 즐겨찾기 in one bordered box */
 .list-panel{
@@ -195,7 +207,12 @@ body{
 .list-section + .list-section{ margin-top:14px; }
 .list-section .panel-head{ margin-bottom:2px; }
 .track-scroll{
-  max-height:220px;
+  /* .track 한 줄 높이 = 58px(=28px 재생버튼 + 28px 위아래 패딩 + 2px 구분선).
+     4곡보다 살짝 여유 있게 잡아서 답답해 보이지 않게 하고, 5곡째부터는 스크롤.
+     min-height도 같이 줘서 "로그인 필요"/"트랙 없음" 같은 빈 상태일 때
+     데모 리스트 박스보다 쪼그라들어 보이지 않게 한다. */
+  min-height:230px;
+  max-height:260px;
   overflow-y:auto;
 }
 
@@ -222,6 +239,16 @@ body{
 }
 .fav-btn:hover{ transform:scale(1.15); }
 .fav-btn.faved{ color:var(--orange); }
+.track-delete-btn{
+  background:none; border:none; cursor:pointer; padding:0; margin-left:4px;
+  font-size:13px; line-height:1; color:var(--mute);
+}
+.track-delete-btn:hover{ color:#c0392b; }
+.track-empty{
+  height:100%; min-height:230px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:var(--mute); text-align:center;
+}
 
 .myupload-row{ display:flex; align-items:center; justify-content:space-between; padding:0; }
 .myupload-row .label{ font-size:17px; font-weight:700; }
@@ -306,4 +333,5 @@ body{
 }
 .profile-trigger{ display:inline-flex; align-items:center; gap:8px; }
 .avatar-large{ width:64px; height:64px; font-size:24px; }
+.avatar-small{ width:22px; height:22px; font-size:11px; flex-shrink:0; }
 .profile-avatar-row{ display:flex; align-items:center; gap:16px; margin-bottom:20px; }

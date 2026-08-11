@@ -1,10 +1,9 @@
 import bcrypt from 'bcryptjs';
-import path from 'path';
-import fs from 'fs';
 import User from '../models/User.js';
 import Post from '../models/Post.js';
 import { generateToken } from '../utils/generateToken.js';
 import { refreshKakaoAccessToken, sendKakaoMemoToSelf } from '../config/kakao.js';
+import { deleteUploadedFile } from '../config/upload.js';
 
 function toPublicUser(user) {
   return {
@@ -14,12 +13,6 @@ function toPublicUser(user) {
     provider: user.provider,
     avatarUrl: user.avatarUrl || null,
   };
-}
-
-function deleteAvatarFile(avatarUrl) {
-  if (!avatarUrl) return;
-  const filePath = path.join(process.cwd(), avatarUrl.replace(/^\//, ''));
-  fs.unlink(filePath, () => {});
 }
 
 export async function register(req, res, next) {
@@ -118,7 +111,7 @@ export async function updateAvatar(req, res, next) {
       return res.status(400).json({ message: '이미지 파일을 첨부하세요.' });
     }
 
-    deleteAvatarFile(req.user.avatarUrl);
+    deleteUploadedFile(req.user.avatarUrl);
     req.user.avatarUrl = `/uploads/avatars/${req.file.filename}`;
     await req.user.save();
 
@@ -174,7 +167,7 @@ export async function deleteAccount(req, res, next) {
       }
     }
 
-    deleteAvatarFile(req.user.avatarUrl);
+    deleteUploadedFile(req.user.avatarUrl);
     // 작성한 게시물은 남기되(게시판 기록 보존), 이 계정으로는 더 이상 로그인할 수 없게 한다.
     await Post.updateMany(
       { author: req.user._id },

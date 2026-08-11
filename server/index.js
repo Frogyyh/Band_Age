@@ -6,6 +6,7 @@ import cors from 'cors';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import postRoutes from './routes/postRoutes.js';
+import songRoutes from './routes/songRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // User 스키마가 Song을 populate()로 참조하므로, 실제로 쓰이지 않더라도
@@ -50,6 +51,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/songs', songRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Not found' });

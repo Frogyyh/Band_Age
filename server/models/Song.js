@@ -5,6 +5,8 @@ const songSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     artist: { type: String, trim: true },
     fileUrl: { type: String, required: true },
+    // 재생 시간(초). 업로드 시 브라우저에서 오디오 메타데이터로 읽어서 보낸다.
+    duration: { type: Number, default: null },
     uploader: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true }
