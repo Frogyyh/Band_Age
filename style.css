@@ -375,6 +375,14 @@ body{
   .loading-spinner{ animation-duration:3s; }
 }
 
+.lobby-music-toggle{
+  position:fixed; z-index:45; right:24px; bottom:20px;
+  padding:10px 13px; border:1px solid #555; background:rgba(5,5,5,.78);
+  color:#ddd; cursor:pointer; backdrop-filter:blur(10px);
+  font:500 9px/1 'IBM Plex Mono',monospace; letter-spacing:.14em;
+}
+.lobby-music-toggle:hover{ border-color:#fff; color:#fff; }
+
 /* ---------- Band-Age monochrome dark theme (front5 기준, 우리 마크업에 맞게 적용) ---------- */
 :root{
   --ink:#F5F5F2;

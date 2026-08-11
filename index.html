@@ -12,6 +12,7 @@
   </head>
   <body>
     <main class="landing">
+      <audio id="siteMusic" src="/Coldplay - Viva La Vida.mp3" autoplay loop preload="auto"></audio>
       <video class="landing-video" autoplay muted loop playsinline preload="auto" poster="/BandAgelogo.png">
         <source src="/bandagevideo.mp4" type="video/mp4">
       </video>
@@ -27,6 +28,7 @@
         <span>Go Play. Get Healed</span>
         <i aria-hidden="true">↗</i>
       </button>
+      <button class="music-toggle" type="button" aria-label="배경 음악 켜기 또는 끄기" aria-pressed="true">MUSIC ON</button>
     </main>
 
     <div id="authDialog" class="auth-dialog" aria-hidden="true">
@@ -50,5 +52,6 @@
       </div>
     </div>
     <script type="module" src="/landing.js"></script>
+    <script type="module" src="/shared-audio.js"></script>
   </body>
 </html>
