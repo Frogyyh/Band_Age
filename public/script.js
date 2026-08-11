@@ -28,6 +28,39 @@ function showToast(msg){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
 }
 
+/* ---------- 로딩 화면 (무대 입장) ---------- */
+const LOADING_STEPS = [10, 34, 58, 76, 92, 100];
+const LOADING_STEP_MS = 420;
+let loadingTimers = [];
+
+function showLoading(){
+  const screen = document.getElementById('loadingScreen');
+  const fill = document.getElementById('loadingBarFill');
+  clearLoadingTimers();
+  fill.style.width = '0%';
+  screen.classList.add('show');
+  screen.setAttribute('aria-hidden', 'false');
+
+  LOADING_STEPS.forEach((pct, i) => {
+    loadingTimers.push(setTimeout(()=> { fill.style.width = pct + '%'; }, (i + 1) * LOADING_STEP_MS));
+  });
+  loadingTimers.push(setTimeout(() => {
+    window.location.href = 'stage.html';
+  }, (LOADING_STEPS.length + 1) * LOADING_STEP_MS));
+}
+
+function hideLoading(){
+  const screen = document.getElementById('loadingScreen');
+  clearLoadingTimers();
+  screen.classList.remove('show');
+  screen.setAttribute('aria-hidden', 'true');
+}
+
+function clearLoadingTimers(){
+  loadingTimers.forEach(clearTimeout);
+  loadingTimers = [];
+}
+
 const API_BASE = 'http://localhost:4000/api';
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 let authMode = 'login';
@@ -154,7 +187,7 @@ function renderAuthArea(user){
       <button class="link-btn" onclick="openModal('signup')">회원가입</button>
     `;
   }
-  loadMySongs();
+  loadAllCustomSongs();
 }
 
 async function checkSession(){
@@ -227,6 +260,49 @@ function openProfileModal(){
   renderProfileAvatarPreview();
   resetWithdrawSection();
   document.getElementById('profileOverlay').classList.add('show');
+  loadMyPageSongs();
+  loadMyPagePosts();
+}
+
+async function loadMyPageSongs(){
+  const container = document.getElementById('myPageSongs');
+  if(!container || !currentUser) return;
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/songs/mine', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if(!res.ok){
+      renderCustomTracks([], 'myPageSongs');
+      return;
+    }
+    renderCustomTracks(await res.json(), 'myPageSongs');
+  } catch(err){
+    container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
+  }
+}
+
+async function loadMyPagePosts(){
+  const container = document.getElementById('myPagePosts');
+  if(!container || !currentUser) return;
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/posts/mine', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if(!res.ok){
+      container.innerHTML = '<div class="board-row"><span class="t">불러올 수 없어요.</span></div>';
+      return;
+    }
+    const posts = await res.json();
+    if(!posts.length){
+      container.innerHTML = '<div class="board-row"><span class="t">아직 쓴 글이 없어요.</span></div>';
+      return;
+    }
+    renderBoardRows('myPagePosts', posts);
+  } catch(err){
+    container.innerHTML = '<div class="board-row"><span class="t">불러올 수 없어요.</span></div>';
+  }
 }
 function closeProfileModal(){
   document.getElementById('profileOverlay').classList.remove('show');
@@ -718,45 +794,42 @@ function readAudioDuration(file){
   });
 }
 
-function renderCustomTracks(songs){
-  const container = document.getElementById('customTrackList');
+function renderCustomTracks(songs, containerId = 'customTrackList', scope = 'all'){
+  const container = document.getElementById(containerId);
   if(!container) return;
-  if(!currentUser){
+  if(scope === 'mine' && !currentUser){
     container.innerHTML = '<div class="track-empty">로그인 후 이용할 수 있어요.</div>';
     return;
   }
   if(!songs.length){
-    container.innerHTML = '<div class="track-empty">업로드한 트랙이 없어요.</div>';
+    container.innerHTML = `<div class="track-empty">${scope === 'mine' ? '업로드한 트랙이 없어요.' : '아직 커스텀 트랙이 없어요.'}</div>`;
     return;
   }
-  container.innerHTML = songs.map((song) => `
+  container.innerHTML = songs.map((song) => {
+    const isOwner = currentUser && String(song.uploader) === String(currentUser.id);
+    return `
     <div class="track" onclick="toggleTrack(this)">
       <span class="track-name">${escapeHtml(song.title)}</span>
       <span class="track-time">${formatDuration(song.duration)}</span>
       <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
       <button class="play-btn">▷</button>
-      <button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>
+      ${isOwner ? `<button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
-async function loadMySongs(){
+// 메인 화면 "사용자의 커스텀"은 전체 사용자의 업로드 곡을 보여준다 (마이페이지의 "내가 커스텀한 곡"과는 다름).
+async function loadAllCustomSongs(){
   const container = document.getElementById('customTrackList');
   if(!container) return;
-  if(!currentUser){
-    renderCustomTracks([]);
-    return;
-  }
-  const token = localStorage.getItem('band_age_token');
   try{
-    const res = await fetch(API_BASE + '/songs/mine', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(API_BASE + '/songs');
     if(!res.ok){
-      renderCustomTracks([]);
+      renderCustomTracks([], 'customTrackList', 'all');
       return;
     }
-    renderCustomTracks(await res.json());
+    renderCustomTracks(await res.json(), 'customTrackList', 'all');
   } catch(err){
     container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
   }
@@ -776,7 +849,8 @@ async function deleteSong(id){
       return;
     }
     showToast('트랙이 삭제되었습니다.');
-    loadMySongs();
+    loadAllCustomSongs();
+    loadMyPageSongs();
   } catch(err){
     showToast('서버에 연결할 수 없습니다.');
   }
@@ -808,7 +882,8 @@ async function handleSongUpload(file){
       return;
     }
     showToast('"' + data.title + '" 업로드 완료!');
-    loadMySongs();
+    loadAllCustomSongs();
+    loadMyPageSongs();
   } catch(err){
     showToast('서버에 연결할 수 없습니다.');
   }
@@ -832,6 +907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   await refreshHotPost();
   loadBoardPreview();
+  loadAllCustomSongs();
 
   updateListCounts();
   setupListSearch();

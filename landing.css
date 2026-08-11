@@ -1,0 +1,38 @@
+:root{color-scheme:dark;--white:#f4f3ef;--muted:#a6a6a3;--line:rgba(255,255,255,.24);--glass:rgba(7,7,7,.76)}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;font-family:'Space Grotesk',sans-serif}
+button,input{font:inherit}
+.landing{position:relative;width:100%;height:100%;isolation:isolate;background:#000;color:var(--white)}
+.landing-video{position:absolute;z-index:-3;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.72) contrast(1.08);transform:scale(1.01)}
+.landing-shade{position:absolute;z-index:-2;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.46),rgba(0,0,0,.08) 40%,rgba(0,0,0,.72)),radial-gradient(circle at center,transparent 20%,rgba(0,0,0,.4) 100%)}
+.landing-header{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:28px 34px;color:rgba(255,255,255,.72);font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.2em}
+.landing-hero{position:absolute;inset:12% 8% 18%;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.landing-hero img{display:block;width:min(1120px,88vw);max-height:62vh;object-fit:contain;filter:drop-shadow(0 18px 45px rgba(0,0,0,.75));animation:logo-in 1.1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes logo-in{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+.enter-button{position:absolute;left:50%;bottom:42px;transform:translateX(-50%);min-width:min(420px,calc(100vw - 40px));display:flex;align-items:center;justify-content:space-between;gap:48px;padding:18px 20px 18px 24px;border:1px solid rgba(255,255,255,.72);background:rgba(0,0,0,.68);color:#fff;cursor:pointer;backdrop-filter:blur(14px);font-size:15px;font-weight:600;letter-spacing:.04em;transition:.22s ease}
+.enter-button i{display:grid;place-items:center;width:31px;height:31px;background:#fff;color:#000;font-style:normal;font-size:16px}
+.enter-button:hover{background:#fff;color:#050505;box-shadow:0 0 40px rgba(255,255,255,.16)}
+.enter-button:hover i{background:#050505;color:#fff}
+.auth-dialog{position:fixed;z-index:20;inset:0;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(16px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility .25s}
+.auth-dialog.is-open{opacity:1;visibility:visible;pointer-events:auto}
+.auth-card{position:relative;width:min(440px,100%);padding:38px;border:1px solid #3a3a3a;background:rgba(9,9,9,.94);color:var(--white);box-shadow:0 30px 100px #000;transform:translateY(14px);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.auth-dialog.is-open .auth-card{transform:none}
+.auth-close{position:absolute;top:14px;right:16px;border:0;background:none;color:#aaa;font-size:25px;cursor:pointer}
+.auth-kicker{margin:0 0 18px;color:#8e8e8a;font:500 9px/1 'IBM Plex Mono',monospace;letter-spacing:.2em}
+.auth-card h1{margin:0 0 9px;font-size:30px;letter-spacing:-.04em}
+.auth-card>p:not(.auth-kicker){margin:0;color:#8e8e8a;font-size:13px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;margin:28px 0 22px;border-bottom:1px solid #303030}
+.auth-tab{padding:12px;border:0;border-bottom:2px solid transparent;background:none;color:#777;cursor:pointer;font-size:13px}
+.auth-tab.is-active{border-color:#fff;color:#fff}
+#authForm{display:grid;gap:15px}
+#authForm label{display:grid;gap:7px;color:#aaa;font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.1em}
+#authForm label[hidden]{display:none}
+#authForm input{width:100%;height:45px;padding:0 13px;border:1px solid #3b3b3b;border-radius:0;background:#111;color:#fff;outline:none}
+#authForm input:focus{border-color:#fff}
+.auth-error{margin:0!important;color:#ff8b82!important;font-size:12px!important}
+.auth-submit,.kakao-button{width:100%;height:47px;border:1px solid #fff;cursor:pointer;font-size:13px;font-weight:700}
+.auth-submit{margin-top:4px;background:#fff;color:#080808}
+.auth-submit:disabled{opacity:.5;cursor:wait}
+.kakao-button{margin-top:10px;background:#FEE500;border-color:#FEE500;color:#191600}
+@media(max-width:640px){.landing-header{padding:20px}.landing-header span:last-child{display:none}.landing-hero{inset:10% 3% 21%}.landing-hero img{width:96vw}.enter-button{bottom:24px}.auth-card{padding:34px 24px}}
+@media(prefers-reduced-motion:reduce){.landing-hero img{animation:none}}

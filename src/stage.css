@@ -1,0 +1,51 @@
+:root { color-scheme: dark; background: #030405; }
+* { box-sizing: border-box; }
+html, body, #scene { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #030405; }
+#scene { position: relative; cursor: grab; }
+#scene:active { cursor: grabbing; }
+#scene.can-select { cursor: pointer; }
+#scene.free-camera { cursor: crosshair; }
+canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+#maskControls {
+  position: fixed;
+  z-index: 10;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+}
+.mask-button {
+  pointer-events: auto;
+  padding: 12px 16px;
+  border: 1px solid rgba(167, 255, 91, 0.7);
+  border-radius: 999px;
+  background: rgba(4, 10, 5, 0.72);
+  color: #b8ff79;
+  font: 700 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.mask-button:hover { background: rgba(42, 83, 27, 0.8); }
+.mask-button[aria-pressed='true'] {
+  background: #a7ff5b;
+  color: #102008;
+  box-shadow: 0 0 24px rgba(167, 255, 91, 0.35);
+}
+.mask-button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+#artistPanel { position: fixed; z-index: 12; top: 22px; right: 22px; bottom: 22px; width: min(340px, calc(100vw - 44px)); padding: 28px; border: 1px solid rgba(183,224,243,.25); background: rgba(4,9,12,.88); color: #eaf6fb; backdrop-filter: blur(18px); transform: translateX(calc(100% + 32px)); opacity: 0; visibility: hidden; transition: transform .42s cubic-bezier(.2,.8,.2,1), opacity .3s, visibility .42s; pointer-events: none; }
+#artistPanel.is-open { transform: translateX(0); opacity: 1; visibility: visible; pointer-events: auto; }
+#artistPanel > span { color: #81b8cf; font: 600 9px/1 system-ui,sans-serif; letter-spacing: .2em; }
+#artistPanel h1 { margin: 16px 0 8px; font: 700 clamp(32px,5vw,58px)/.9 system-ui,sans-serif; letter-spacing: -.055em; }
+#artistPanel p { margin: 0; color: #6f858f; font: 500 9px/1 system-ui,sans-serif; letter-spacing: .14em; }
+#artistMotionButton { margin-top: 36px; width: 100%; padding: 13px; border: 1px solid #334a55; background: rgba(15,28,34,.72); color: #b9dce9; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .14em; cursor: pointer; }
+#artistMotionButton:hover { background: #193441; }
+#artistExitButton { position: absolute; left: 28px; bottom: 28px; padding: 12px 18px; border: 1px solid #6d7e85; background: transparent; color: #fff; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .16em; cursor: pointer; }
+#artistExitButton:hover { border-color: #fff; background: #fff; color: #071015; }

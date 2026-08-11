@@ -2,6 +2,15 @@ import Song from '../models/Song.js';
 import User from '../models/User.js';
 import { deleteUploadedFile } from '../config/upload.js';
 
+export async function listAllSongs(req, res, next) {
+  try {
+    const songs = await Song.find().sort({ createdAt: -1 }).limit(100);
+    res.json(songs);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listMySongs(req, res, next) {
   try {
     const songs = await Song.find({ uploader: req.user._id }).sort({ createdAt: -1 });

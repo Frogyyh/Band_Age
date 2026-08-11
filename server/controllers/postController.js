@@ -10,6 +10,15 @@ export async function listPosts(req, res, next) {
   }
 }
 
+export async function listMyPosts(req, res, next) {
+  try {
+    const posts = await Post.find({ author: req.user._id }).sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createPost(req, res, next) {
   try {
     const { title, content } = req.body;

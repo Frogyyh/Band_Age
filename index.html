@@ -1,219 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Band-Age — 음악으로 연주하고 치유하는 가상 밴드 무대">
+    <title>Band-Age — We Play. We Heal.</title>
+    <link rel="icon" href="/BandAge.ico" sizes="any">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/landing.css">
+  </head>
+  <body>
+    <main class="landing">
+      <video class="landing-video" autoplay muted loop playsinline preload="auto" poster="/BandAgelogo.png">
+        <source src="/bandagevideo.mp4" type="video/mp4">
+      </video>
+      <div class="landing-shade" aria-hidden="true"></div>
+      <header class="landing-header">
+        <span>BAND-AGE</span>
+        <span>VIRTUAL PERFORMANCE SYSTEM</span>
+      </header>
+      <section class="landing-hero">
+        <img src="/bandagelogo_nobackground.png" alt="Band-Age">
+      </section>
+      <button id="enterButton" class="enter-button" type="button">
+        <span>Go Play. Get Healed</span>
+        <i aria-hidden="true">↗</i>
+      </button>
+    </main>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Band-Age — 로비</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-
-  <div class="frame">
-    <div class="topbar">
-      <div class="brand-dots"><span></span><span></span><span></span></div>
-      <div class="topbar-title">Band-Age — 로비</div>
-      <div class="topbar-right" id="authArea">
-        <button class="link-btn" onclick="openModal('login')">로그인</button>
-        <button class="link-btn" onclick="openModal('signup')">회원가입</button>
+    <div id="authDialog" class="auth-dialog" aria-hidden="true">
+      <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <button id="authClose" class="auth-close" type="button" aria-label="닫기">×</button>
+        <p class="auth-kicker">WELCOME TO BAND-AGE</p>
+        <h1 id="authTitle">다시 만나 반가워요.</h1>
+        <p id="authDescription">로그인하고 나만의 밴드 무대로 이동하세요.</p>
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab is-active" data-mode="login" type="button">로그인</button>
+          <button class="auth-tab" data-mode="signup" type="button">회원가입</button>
+        </div>
+        <form id="authForm">
+          <label>아이디<input id="authUsername" autocomplete="username" required></label>
+          <label id="nicknameField" hidden>닉네임<input id="authNickname" autocomplete="nickname"></label>
+          <label>비밀번호<input id="authPassword" type="password" autocomplete="current-password" required></label>
+          <p id="authError" class="auth-error" role="alert" hidden></p>
+          <button id="authSubmit" class="auth-submit" type="submit">로그인하고 시작하기</button>
+        </form>
+        <button id="kakaoButton" class="kakao-button" type="button">카카오로 시작하기</button>
       </div>
     </div>
-
-    <div class="body-grid">
-      <!-- LEFT -->
-      <div class="col col-left">
-        <p class="logo">Band-Age</p>
-
-        <p class="block-label">데모 영상</p>
-        <div class="video-box" id="videoBox" onclick="toggleVideo()">
-          <svg viewBox="0 0 400 225" preserveAspectRatio="none">
-            <line class="diag" x1="220" y1="0" x2="140" y2="90"></line>
-            <line class="diag" x1="260" y1="135" x2="180" y2="225"></line>
-          </svg>
-          <div class="video-play"></div>
-          <div class="video-caption">DEMO · 0:42</div>
-        </div>
-
-        <div class="about-box">
-          <p>노래 한 곡을 올리면 <strong>6인조 밴드</strong>가 그 곡을 라이브로 연주합니다.</p>
-          <p>보컬 · 드럼 · 베이스 · 기타 · 피아노 · DJ — 박자와 강세에 맞춰 실시간으로 움직여요.</p>
-          <p>직접 데모를 눌러보고, 마음에 들면 내 곡을 올려서 밴드를 무대에 세워보세요.</p>
-        </div>
-
-        <div class="board-box">
-          <p class="block-label">방명록 <span class="n">RECENT</span></p>
-          <div class="board-list" id="boardPreview">
-            <div class="board-row"><span class="idx">-</span><span class="t">불러오는 중...</span><span class="m"></span></div>
-          </div>
-          <button class="board-more-btn" onclick="openBoardModal()">+ 방명록 전체보기</button>
-        </div>
-      </div>
-
-      <!-- RIGHT -->
-      <div class="col col-right">
-        <div class="list-panel">
-          <div class="list-section">
-            <div class="panel-head">
-              <div class="panel-head-left">
-                <h2>데모 리스트</h2>
-                <input type="text" class="list-search" placeholder="검색" aria-label="데모 리스트 검색">
-              </div>
-              <span class="count" data-suffix="TRACKS">00 TRACKS</span>
-            </div>
-            <div class="track-scroll">
-              <div class="track" onclick="toggleTrack(this)">
-                <span class="track-name">데모 트랙 01</span>
-                <span class="track-time">3:12</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
-              </div>
-              <div class="track" onclick="toggleTrack(this)">
-                <span class="track-name">데모 트랙 02</span>
-                <span class="track-time">2:48</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
-              </div>
-              <div class="track" onclick="toggleTrack(this)">
-                <span class="track-name">데모 트랙 03</span>
-                <span class="track-time">4:05</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
-              </div>
-              <div class="track track-extra">
-                <span class="track-name">데모 트랙 04</span>
-                <span class="track-time">3:45</span>
-                <button class="fav-btn" onclick="toggleFav(event, this)">♥</button>
-                <button class="play-btn">▷</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="list-section">
-            <div class="panel-head">
-              <div class="panel-head-left">
-                <h2>내 커스텀</h2>
-                <input type="text" class="list-search" placeholder="검색" aria-label="내 커스텀 검색">
-              </div>
-              <span class="count" data-suffix="SAVED">00 SAVED</span>
-            </div>
-            <div class="track-scroll" id="customTrackList">
-              <div class="track-empty">로그인 후 이용할 수 있어요.</div>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="panel myupload-row">
-          <span class="label"> MY SONG ♪</span>
-          <div>
-            <button class="upload-btn" onclick="triggerUpload()">+ 업로드</button>
-            <input type="file" id="fileInput" accept="audio/*" style="display:none">
-          </div>
-        </div>
-
-        <div class="cta-bar" onclick="showToast('메인 스테이지로 이동합니다 →')">
-          <div class="play-circle">▶</div>
-          <div>
-            <div class="cta-text">지금 무대 시작하기</div>
-            <div class="cta-sub">LIVE STAGE · 6 MEMBERS</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
-
-  <div class="overlay" id="overlay" onclick="if(event.target===this) closeModal()">
-    <div class="modal">
-      <button class="close" onclick="closeModal()">✕</button>
-      <h3 id="modalTitle">로그인</h3>
-      <p id="modalSub">밴드가 당신을 기다리고 있어요.</p>
-      <p id="authError" class="auth-error" style="display:none"></p>
-      <input type="text" id="authUsername" placeholder="아이디">
-      <input type="text" id="authNickname" placeholder="닉네임" style="display:none">
-      <input type="password" id="authPassword" placeholder="비밀번호">
-      <button class="submit" id="authSubmit" onclick="submitAuth()">계속하기</button>
-      <button class="submit kakao-submit" onclick="loginWithKakao()">카카오로 시작하기</button>
-    </div>
-  </div>
-
-  <div class="overlay" id="nicknameOverlay">
-    <div class="modal">
-      <h3>닉네임 설정</h3>
-      <p>카카오 계정으로 처음 가입하셨네요! 사용하실 닉네임을 정해주세요.</p>
-      <p id="nicknameError" class="auth-error" style="display:none"></p>
-      <input type="text" id="newNickname" placeholder="닉네임">
-      <button class="submit" onclick="submitNickname()">완료</button>
-      <button class="link-btn" style="width:100%; text-align:center; margin-top:8px;" onclick="closeNicknameModal()">나중에 할게요</button>
-    </div>
-  </div>
-
-  <div class="overlay" id="profileOverlay" onclick="if(event.target===this) closeProfileModal()">
-    <div class="modal">
-      <button class="close" onclick="closeProfileModal()">✕</button>
-      <h3>프로필</h3>
-      <div class="profile-avatar-row">
-        <div id="profileAvatarPreview"></div>
-        <div>
-          <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="submitAvatar(event)">
-          <button class="link-btn" style="border:2px solid var(--ink); padding:6px 12px;" onclick="document.getElementById('avatarInput').click()">사진 변경</button>
-        </div>
-      </div>
-      <p id="profileError" class="auth-error" style="display:none"></p>
-      <input type="text" id="profileNickname" placeholder="닉네임">
-      <button class="submit" onclick="saveProfileNickname()">닉네임 저장</button>
-
-      <button class="submit" id="withdrawTrigger" style="background:#c0392b; border-color:#c0392b; margin-top:20px;" onclick="startWithdraw()">회원탈퇴</button>
-      <div id="withdrawSection" style="display:none; margin-top:12px;">
-        <p id="withdrawHint" style="font-size:12px; color:var(--mute); margin:-6px 0 12px;"></p>
-        <p id="withdrawError" class="auth-error" style="display:none"></p>
-        <input id="withdrawPassword1" placeholder="비밀번호">
-        <input id="withdrawPassword2" placeholder="비밀번호 확인">
-        <button class="submit" style="background:#c0392b; border-color:#c0392b;" onclick="confirmWithdraw()">탈퇴 확정</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="overlay" id="boardOverlay" onclick="if(event.target===this) closeBoardModal()">
-    <div class="modal board-modal">
-      <button class="close" onclick="closeBoardModal()">✕</button>
-      <h3>방명록</h3>
-      <button class="board-write-btn" onclick="toggleWriteForm()">+ 글쓰기</button>
-      <div class="board-write-form" id="writeForm" style="display:none">
-        <div class="post-detail-author" id="writeFormAuthor"></div>
-        <input type="text" id="postTitle" placeholder="제목">
-        <textarea id="postContent" placeholder="내용" rows="4"></textarea>
-        <p id="postError" class="auth-error" style="display:none"></p>
-        <button class="submit" onclick="submitPost()">등록</button>
-      </div>
-      <div class="board-tabs">
-        <button class="board-tab active" id="tabLatest" onclick="setBoardSort('latest')">최신</button>
-        <button class="board-tab" id="tabViews" onclick="setBoardSort('views')">조회수</button>
-      </div>
-      <div class="board-full-list" id="boardFullList"></div>
-      <div class="board-pagination" id="boardPagination"></div>
-    </div>
-  </div>
-
-  <div class="overlay" id="postDetailOverlay" onclick="if(event.target===this) closePostDetail()">
-    <div class="modal board-modal">
-      <button class="close" onclick="closePostDetail()">✕</button>
-      <div class="post-detail-author" id="postDetailAuthor"></div>
-      <h3 id="postDetailTitle"></h3>
-      <p id="postDetailMeta" style="font-size:11px; color:var(--mute); margin:-8px 0 16px;"></p>
-      <p id="postDetailContent" style="font-size:14px; line-height:1.7; white-space:pre-wrap;"></p>
-      <button class="submit" id="postDetailDeleteBtn" style="background:#c0392b; border-color:#c0392b; display:none;" onclick="deletePost(currentPostDetailId, true)">게시물 삭제</button>
-    </div>
-  </div>
-
-  <script src="script.js"></script>
-  <script src="script2.js"></script>
-</body>
-
+    <script type="module" src="/landing.js"></script>
+  </body>
 </html>

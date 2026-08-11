@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { listMySongs, uploadSongFile, deleteSong } from '../controllers/songController.js';
+import { listAllSongs, listMySongs, uploadSongFile, deleteSong } from '../controllers/songController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadSong } from '../config/upload.js';
 
 const router = Router();
 
+router.get('/', listAllSongs);
 router.get('/mine', requireAuth, listMySongs);
 
 router.post('/', requireAuth, (req, res, next) => {
