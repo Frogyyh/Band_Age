@@ -33,7 +33,20 @@ function setMode(nextMode){
 function showError(message){errorBox.textContent=message;errorBox.hidden=false}
 function goToLobby(extra=''){window.location.href='/lobby.html'+extra}
 
-document.querySelector('#enterButton').addEventListener('click',openAuth);
+// 이미 로그인된 토큰이 있으면 로그인창을 또 띄우지 않고 바로 로비로 보낸다.
+async function hasValidSession(){
+  const token=localStorage.getItem('band_age_token');
+  if(!token)return false;
+  try{
+    const response=await fetch(API_BASE+'/auth/me',{headers:{Authorization:`Bearer ${token}`}});
+    if(!response.ok){localStorage.removeItem('band_age_token');return false}
+    return true;
+  }catch(error){return false}
+}
+
+document.querySelector('#enterButton').addEventListener('click',async()=>{
+  if(await hasValidSession()){goToLobby()}else{openAuth()}
+});
 document.querySelector('#authClose').addEventListener('click',closeAuth);
 dialog.addEventListener('click',event=>{if(event.target===dialog)closeAuth()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closeAuth()});
