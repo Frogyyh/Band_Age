@@ -30,10 +30,6 @@
           <input type="range" id="mixPitchSlider" min="-12" max="12" value="0" step="1" />
         </div>
         <div class="mix-row">
-          <div class="mix-row-label">SPEED <span id="mixSpeedVal">1.00×</span></div>
-          <input type="range" id="mixSpeedSlider" min="25" max="200" value="100" />
-        </div>
-        <div class="mix-row">
           <div class="mix-row-label">PAN <span id="mixPanVal">C</span></div>
           <input type="range" id="mixPanSlider" min="-100" max="100" value="0" step="1" />
         </div>
@@ -57,7 +53,7 @@
         </div>
       </div>
 
-      <button id="artistMotionButton" type="button">PAUSE MOTION</button>
+      <button id="artistMotionButton" type="button">해당 아티스트 정지하기</button>
       <div id="artistPanelActions">
         <button id="artistSaveButton" type="button">저장</button>
         <button id="artistExitButton" type="button">← EXIT</button>
@@ -68,13 +64,18 @@
     <div id="audioBar" aria-hidden="true">
       <div id="audioBarTop">
         <button id="audioPlayButton" type="button">▶ PLAY</button>
-        <button id="audioResetButton" type="button">↺ 되돌리기</button>
+        <button id="audioResetButton" type="button">↺ 전체 되돌리기</button>
+        <button id="timelineToggleButton" type="button" aria-expanded="false">파트 플레이라인</button>
         <span id="audioStatus">MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다</span>
       </div>
       <div id="audioProgressWrap">
         <div id="audioProgressFill"></div>
       </div>
       <div id="audioTime">0:00 / 0:00</div>
+      <div id="stemTimelinePanel" aria-hidden="true">
+        <div id="stemTimelineHeader"><span>PART ACTIVITY</span><span>클릭하여 탐색</span></div>
+        <div id="stemTimelineRows"></div>
+      </div>
     </div>
     <script type="module" src="/src/stage.js"></script>
   </body>

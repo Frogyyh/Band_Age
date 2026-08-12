@@ -31,7 +31,7 @@ export const uploadSong = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
 });
 
-// fileUrl은 "/uploads/avatars/x.png" 같은 웹 경로. 실제 파일은 server/uploads/ 아래에 있으므로
+// fileUrl은 "/uploads/songs/x.mp3" 같은 웹 경로. 실제 파일은 server/uploads/ 아래에 있으므로
 // process.cwd() 기준(프로젝트 루트)이 아니라 이 설정 파일 기준으로 절대 경로를 계산해야 한다.
 export function deleteUploadedFile(fileUrl) {
   if (!fileUrl) return;

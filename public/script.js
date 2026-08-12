@@ -310,8 +310,52 @@ const LOADING_STEPS = [10, 34, 58, 76, 92, 100];
 const LOADING_STEP_MS = 420;
 let loadingTimers = [];
 
+const LOADING_TMI = [
+  '시작 페이지를 유심히 보시면 무슨 AI로 만들었는지 아실 수 있을 거예요..',
+  'DJ 모션은 피아노 모션을 변형한 동작입니다.',
+  '저희 팀은 03, 04, 05, 06으로 구성되어 있습니다.',
+  '저희 팀 혈액형 구성은 B형 3명, A형 1명입니다.',
+  '기타는 같은 음이라도 줄을 누르는 위치와 연주 방법에 따라 음색이 달라집니다.',
+  '일렉기타는 기타 자체보다 앰프와 이펙터가 최종 음색에 큰 영향을 줍니다.',
+  '스네어 소리는 드럼 사운드에서 박자를 느끼게 해주는 핵심 요소입니다.',
+  '기다리느라 많이 힘드시죠...?',
+  '팀원들이 다 F입니다.',
+  '인공지능전공 2명, 컴공 2명으로 구성된 팀입니다.',
+  '베이스 줄은 일반적인 기타 줄보다 더 굵고 낮은 음을 냅니다.',
+  '옛날 녹음 스튜디오는 리버브를 만들려고 타일 깔린 방(에코 챔버)에 실제로 스피커랑 마이크를 두고 녹음했대요. 지금은 그걸 수학 함수 하나로 흉내내요.',
+  '보컬을 믹싱할 때는 음량뿐 아니라 EQ와 리버브도 목소리의 느낌을 크게 바꿉니다.',
+  '노래에서 보컬이 잘 들리지 않는다면 단순히 볼륨을 올리는 것보다 다른 악기의 주파수와 겹치는 부분을 조절하기도 합니다.',
+  'Pan을 왼쪽이나 오른쪽으로 움직이면 소리가 오는 방향이 달라지는 것처럼 들립니다.',
+  'Pan을 적절하게 나누면 여러 악기가 한 공간에 겹치지 않고 배치된 것처럼 느껴집니다.',
+  '추출하기 버튼 누르면 나오는 파일, mp3가 아니라 wav예요. 화질로 치면 무압축 원본이라고 보시면 돼요.',
+];
+let loadingTmiTimer = null;
+
+function startLoadingTmi(){
+  const el = document.getElementById('loadingTmi');
+  if(!el) return;
+  const order = LOADING_TMI.map((_, i) => i).sort(() => Math.random() - 0.5);
+  let idx = 0;
+  const show = (text) => {
+    el.classList.remove('show');
+    setTimeout(() => { el.textContent = text; el.classList.add('show'); }, 200);
+  };
+  show(LOADING_TMI[order[idx]]);
+  loadingTmiTimer = setInterval(() => {
+    idx = (idx + 1) % order.length;
+    show(LOADING_TMI[order[idx]]);
+  }, 4200);
+}
+
+function stopLoadingTmi(){
+  if(loadingTmiTimer){ clearInterval(loadingTmiTimer); loadingTmiTimer = null; }
+  const el = document.getElementById('loadingTmi');
+  if(el) el.classList.remove('show');
+}
+
 /* ---------- AI 음원 분리 연동 (Band_Age FastAPI 서버) ---------- */
-const SEPARATE_ORIGIN = 'http://localhost:8000';
+// 상대경로: 로컬은 vite proxy, 배포는 nginx가 8000번으로 넘겨준다.
+const SEPARATE_ORIGIN = '';
 
 // POST /separate → job_id 즉시 수신 → GET /jobs/{job_id} 폴링 → done 시 { session_id, stems, model } 반환
 // 서버가 항상 htdemucs_6s(vocals/drums/bass/guitar/piano/other)만 사용하므로 모델을 따로 지정하지 않는다.
@@ -401,6 +445,7 @@ async function showLoading(){
   fill.style.width = '0%';
   screen.classList.add('show');
   screen.setAttribute('aria-hidden', 'false');
+  startLoadingTmi();
 
   // 커스텀 트랙을 선택한 경우, 실제 음원 URL(data-audio-src)이 있으면 그 트랙도 분리 대상이다.
   // (데모 트랙은 data-audio-src가 없어 실제 음원이 없으므로 기존 데모 연출로만 처리)
@@ -466,6 +511,7 @@ async function showLoading(){
 function hideLoading(){
   const screen = document.getElementById('loadingScreen');
   clearLoadingTimers();
+  stopLoadingTmi();
   screen.classList.remove('show');
   screen.setAttribute('aria-hidden', 'true');
 }
@@ -475,8 +521,10 @@ function clearLoadingTimers(){
   loadingTimers = [];
 }
 
-const API_BASE = 'http://localhost:4000/api';
-const API_ORIGIN = API_BASE.replace(/\/api$/, '');
+// 상대경로로 둬서 배포 도메인이 바뀌어도 코드를 안 고쳐도 되게 한다.
+// 로컬 개발에서는 vite.config.js의 server.proxy가 실제 백엔드(4000)로 대신 연결해준다.
+const API_BASE = '/api';
+const API_ORIGIN = '';
 let authMode = 'login';
 let currentUser = null;
 

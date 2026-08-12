@@ -17,8 +17,6 @@ const mixVolSlider = document.querySelector('#mixVolSlider');
 const mixVolVal = document.querySelector('#mixVolVal');
 const mixPitchSlider = document.querySelector('#mixPitchSlider');
 const mixPitchVal = document.querySelector('#mixPitchVal');
-const mixSpeedSlider = document.querySelector('#mixSpeedSlider');
-const mixSpeedVal = document.querySelector('#mixSpeedVal');
 const mixPanSlider = document.querySelector('#mixPanSlider');
 const mixPanVal = document.querySelector('#mixPanVal');
 const mixEqLowSlider = document.querySelector('#mixEqLowSlider');
@@ -38,11 +36,16 @@ const audioProgressFill = document.querySelector('#audioProgressFill');
 const audioTime = document.querySelector('#audioTime');
 const songTitle = document.querySelector('#songTitle');
 const publishButton = document.querySelector('#publishButton');
+const timelineToggleButton = document.querySelector('#timelineToggleButton');
+const stemTimelinePanel = document.querySelector('#stemTimelinePanel');
+const stemTimelineRows = document.querySelector('#stemTimelineRows');
+const timelinePlayheads = [];
 
 // ── AI 음원 분리 결과(MY SONG) 연동 ─────────────────────────────
 // 로비(lobby.html)에서 업로드 → 분리 완료 후 sessionStorage에 저장해 둔 stem 정보를 이어받는다.
-const SEPARATE_ORIGIN = 'http://localhost:8000';
-const API_BASE = 'http://localhost:4000/api';
+// 둘 다 상대경로: 로컬은 vite proxy, 배포는 nginx가 각각 8000/4000으로 연결해준다.
+const SEPARATE_ORIGIN = '';
+const API_BASE = '/api';
 const STEM_TO_PERFORMER = { vocals: 'Singer', drums: 'Drum', bass: 'Bass', guitar: 'Guitar', piano: 'Piano', other: 'DJ' };
 const bandAudio = new BandAgeAudio(SEPARATE_ORIGIN);
 let bandAudioReady = false;
@@ -65,6 +68,7 @@ async function initBandAgeAudio() {
     audioBar.classList.add('is-visible');
     await bandAudio.loadStems(saved.stems, saved.sessionId);
     bandAudioReady = true;
+    buildStemTimeline();
     audioStatus.textContent = 'MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다';
     audioTime.textContent = `0:00 / ${fmtTime(bandAudio.duration)}`;
 
@@ -82,25 +86,20 @@ initBandAgeAudio();
 
 audioPlayButton.addEventListener('click', () => {
   if (!bandAudioReady) return;
-  if (bandAudio.isPlaying) {
-    bandAudio.pause();
-    audioPlayButton.textContent = '▶ PLAY';
-  } else {
-    // 처음 재생 시 아직 아무 파트도 솔로 선택 안 했다면 전체 합주로 시작한다.
-    if (bandAudio.activeStems.length === 0) bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, true));
-    bandAudio.play();
-    audioPlayButton.textContent = '❚❚ PAUSE';
-  }
+  setPerformancePaused(bandAudio.isPlaying);
 });
 
 // ── 진행바(탐색) ────────────────────────────────────────────────
 bandAudio.addEventListener('timeupdate', ({ detail }) => {
   const ratio = detail.duration ? Math.min(detail.currentTime / detail.duration, 1) : 0;
   audioProgressFill.style.width = `${ratio * 100}%`;
+  updateTimelinePlayheads(ratio);
   audioTime.textContent = `${fmtTime(detail.currentTime)} / ${fmtTime(detail.duration)}`;
 });
 bandAudio.addEventListener('stop', () => {
+  performancePaused = true;
   audioProgressFill.style.width = '0%';
+  updateTimelinePlayheads(0);
   audioTime.textContent = `0:00 / ${fmtTime(bandAudio.duration)}`;
   audioPlayButton.textContent = '▶ PLAY';
 });
@@ -110,12 +109,79 @@ audioProgressWrap.addEventListener('click', (event) => {
   const ratio = (event.clientX - rect.left) / rect.width;
   bandAudio.seekTo(ratio * bandAudio.duration);
   audioProgressFill.style.width = `${Math.min(Math.max(ratio, 0), 1) * 100}%`;
+  updateTimelinePlayheads(ratio);
 });
+
+timelineToggleButton.addEventListener('click', () => {
+  const open = !stemTimelinePanel.classList.contains('is-open');
+  stemTimelinePanel.classList.toggle('is-open', open);
+  timelineToggleButton.classList.toggle('is-open', open);
+  timelineToggleButton.setAttribute('aria-expanded', String(open));
+  stemTimelinePanel.setAttribute('aria-hidden', String(!open));
+});
+
+function updateTimelinePlayheads(ratio) {
+  const left = `${THREE.MathUtils.clamp(ratio, 0, 1) * 100}%`;
+  timelinePlayheads.forEach((playhead) => { playhead.style.left = left; });
+}
+
+function buildStemTimeline() {
+  stemTimelineRows.replaceChildren();
+  timelinePlayheads.length = 0;
+  const colors = {
+    vocals: '#d7f5ff', drums: '#8ee5ff', bass: '#ffd08a',
+    guitar: '#a7ff5b', piano: '#f4c97a', other: '#b7a6ff'
+  };
+  const labels = { vocals: 'VOCALS', drums: 'DRUMS', bass: 'BASS', guitar: 'GUITAR', piano: 'PIANO', other: 'DJ' };
+
+  bandAudio.stems.forEach((stemName) => {
+    const row = document.createElement('div');
+    row.className = 'stem-timeline-row';
+    const label = document.createElement('span');
+    label.className = 'stem-timeline-label';
+    label.textContent = labels[stemName] || stemName.toUpperCase();
+    const track = document.createElement('div');
+    track.className = 'stem-timeline-track';
+    track.title = `${label.textContent} 재생 위치로 이동`;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 52;
+    const ctx = canvas.getContext('2d');
+    const envelope = bandAudio.getStemEnvelope(stemName, 300);
+    ctx.fillStyle = colors[stemName] || '#a7ff5b';
+    envelope.forEach((level, index) => {
+      if (level < 0.025) return;
+      const x = index / envelope.length * canvas.width;
+      const width = Math.max(1, canvas.width / envelope.length - 1);
+      const height = Math.max(1, level * canvas.height * 0.88);
+      ctx.globalAlpha = 0.28 + level * 0.72;
+      ctx.fillRect(x, (canvas.height - height) / 2, width, height);
+    });
+    ctx.globalAlpha = 1;
+    const playhead = document.createElement('span');
+    playhead.className = 'stem-timeline-playhead';
+    timelinePlayheads.push(playhead);
+    track.append(canvas, playhead);
+    track.addEventListener('click', (event) => {
+      if (!bandAudio.duration) return;
+      const rect = track.getBoundingClientRect();
+      const ratio = THREE.MathUtils.clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      bandAudio.seekTo(ratio * bandAudio.duration);
+      audioProgressFill.style.width = `${ratio * 100}%`;
+      updateTimelinePlayheads(ratio);
+    });
+    row.append(label, track);
+    stemTimelineRows.append(row);
+  });
+}
 
 // ── 되돌리기: 믹스/이펙트를 원본으로 복구 + 솔로 해제(전체 합주) ──
 audioResetButton.addEventListener('click', () => {
   if (!bandAudioReady) return;
+  stoppedPerformers.clear();
   bandAudio.resetAll();
+  syncPerformanceStems();
+  updateArtistControlButton();
   audioStatus.textContent = 'MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다';
 });
 
@@ -188,7 +254,12 @@ publishButton.addEventListener('click', async () => {
   publishButton.disabled = true;
   publishButton.textContent = '믹스다운 중…';
   try {
-    const blob = await bandAudio.renderMixdown();
+    // 아티스트 상세 화면의 솔로 상태와 관계없이 저장된 전체 파트 설정을 병합한다.
+    const mixStemNames = bandAudio.stems.filter((stemName) => {
+      const performerName = performerNameForStem(stemName);
+      return !performerName || !stoppedPerformers.has(performerName);
+    });
+    const blob = await bandAudio.renderMixdown(mixStemNames);
     if (!blob) {
       audioStatus.textContent = '들리는 파트가 없어 다운로드할 수 없습니다.';
       return;
@@ -217,8 +288,8 @@ window.addEventListener('beforeunload', () => {
 });
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020405);
-scene.fog = new THREE.FogExp2(0x020405, 0.014);
+scene.background = new THREE.Color(0x071116);
+scene.fog = new THREE.FogExp2(0x071116, 0.0095);
 
 const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.05, 150);
 camera.position.set(0, 13, 38);
@@ -230,7 +301,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
+renderer.toneMappingExposure = 1.34;
 container.appendChild(renderer.domElement);
 
 // Default camera: above and in front of the singer. Drag to orbit the stage.
@@ -251,7 +322,7 @@ const stageHeight = 0.65;
 const stage = new THREE.Mesh(
   new THREE.BoxGeometry(stageWidth, stageHeight, stageDepth),
   new THREE.MeshPhysicalMaterial({
-    color: 0x102a35,
+    color: 0x173b49,
     metalness: 0.82,
     roughness: 0.23,
     clearcoat: 0.7,
@@ -271,7 +342,27 @@ ground.position.y = -stageHeight - 0.01;
 ground.receiveShadow = true;
 scene.add(ground);
 
-scene.add(new THREE.HemisphereLight(0x42677e, 0x030304, 0.8));
+scene.add(new THREE.HemisphereLight(0x78aabd, 0x05090c, 0.82));
+
+// 무대 바닥의 동심원과 패널 라인이 공연 영역을 하나로 묶어준다.
+const floorAccentMaterial = new THREE.MeshBasicMaterial({ color: 0x69c6df, transparent: true, opacity: 0.27, side: THREE.DoubleSide, toneMapped: false });
+[4.8, 8.2, 11.4].forEach((radius) => {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(radius, radius + 0.055, 96), floorAccentMaterial);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.018;
+  scene.add(ring);
+});
+for (let x = -12; x <= 12; x += 3) {
+  const line = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.018, 21.5), floorAccentMaterial);
+  line.position.set(x, 0.02, 0);
+  scene.add(line);
+}
+const centerMark = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.25, 2.25, 0.035, 64),
+  new THREE.MeshPhysicalMaterial({ color: 0x153b49, emissive: 0x2c8ba8, emissiveIntensity: 0.42, metalness: 0.72, roughness: 0.28 })
+);
+centerMark.position.y = 0.025;
+scene.add(centerMark);
 
 // Dark theatre curtain and shallow vertical folds.
 const curtainMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.96 });
@@ -307,18 +398,78 @@ openingGlow.rotation.x = Math.PI / 2;
 openingGlow.position.y = canopyY - 0.37;
 scene.add(openingGlow);
 
+// 상부 메인 트러스와 측면 타워: 무대 전체를 감싸는 콘서트 스케일의 구조물.
+const trussMaterial = new THREE.MeshStandardMaterial({ color: 0x52656d, metalness: 0.9, roughness: 0.3 });
+const trussGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xa8e9ff, transparent: true, opacity: 0.48, toneMapped: false });
+function addTrussBeam(width, height, depth, x, y, z, glow = false) {
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), glow ? trussGlowMaterial : trussMaterial);
+  beam.position.set(x, y, z);
+  beam.castShadow = !glow;
+  scene.add(beam);
+}
+[-14.2, 14.2].forEach((x) => {
+  addTrussBeam(0.32, 15.5, 0.32, x, 7.75, -8.8);
+  addTrussBeam(0.32, 15.5, 0.32, x, 7.75, 8.8);
+  for (let y = 1.4; y < 15; y += 2.2) {
+    addTrussBeam(0.8, 0.08, 0.08, x, y, -8.8, true);
+    addTrussBeam(0.8, 0.08, 0.08, x, y, 8.8, true);
+  }
+});
+[-8.8, 8.8].forEach((z) => {
+  addTrussBeam(28.7, 0.34, 0.34, 0, 15.35, z);
+  for (let x = -12; x <= 12; x += 3) addTrussBeam(1.4, 0.07, 0.07, x, 15.05, z, true);
+});
+
+// 무대와 상부 구조물을 함께 감싸는 대형 워시 라이트.
+const mainRigWash = new THREE.SpotLight(0xd9f5ff, 900, 52, THREE.MathUtils.degToRad(58), 0.78, 1.0);
+mainRigWash.position.set(0, 24, 5);
+mainRigWash.target.position.set(0, 0, -1);
+mainRigWash.castShadow = true;
+mainRigWash.shadow.mapSize.set(2048, 2048);
+scene.add(mainRigWash, mainRigWash.target);
+const mainLightBeam = new THREE.Mesh(
+  new THREE.ConeGeometry(16.5, 23, 64, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xbdeeff, transparent: true, opacity: 0.027, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+);
+mainLightBeam.position.set(0, 11.5, -1);
+scene.add(mainLightBeam);
+
+// 양옆 LED 토템과 후면 발광 패널로 빈 공간을 채운다.
+[-12.8, 12.8].forEach((x) => {
+  const tower = new THREE.Group();
+  for (let y = 1.2; y <= 10.8; y += 1.6) {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.48, 1.05, 0.22),
+      new THREE.MeshStandardMaterial({ color: 0x18323c, emissive: y % 3 < 1 ? 0x68c9e6 : 0xffc77b, emissiveIntensity: 1.15, metalness: 0.55, roughness: 0.34 })
+    );
+    panel.position.set(0, y, 0);
+    tower.add(panel);
+  }
+  tower.position.set(x, 0, -5.8);
+  scene.add(tower);
+});
+for (let x = -9; x <= 9; x += 3) {
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 5.5, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x132830, emissive: x % 2 === 0 ? 0x1e738d : 0x6c512e, emissiveIntensity: 0.55, metalness: 0.48, roughness: 0.42 })
+  );
+  panel.position.set(x, 4.1, -12.45);
+  scene.add(panel);
+}
+
 const lightTargets = [
-  { name: 'Singer', position: [0, 9], color: 0xdff7ff, intensity: 950, radius: 2.7 },
-  { name: 'Bass', position: [8.2, 6.2], color: 0xffe4b0, intensity: 760, radius: 2.4 },
-  { name: 'DJ', position: [10.6, -2], color: 0xc6eaff, intensity: 720, radius: 2.5 },
-  { name: 'Drum', position: [0, -7.5], color: 0xc8efff, intensity: 1050, radius: 3.2 },
-  { name: 'Piano', position: [-10.6, -2], color: 0xffe1a3, intensity: 740, radius: 2.7 },
-  { name: 'Guitar', position: [-8.2, 6.2], color: 0xd8f5ff, intensity: 760, radius: 2.4 }
+  { name: 'Singer', position: [0, 9], color: 0xf0fbff, intensity: 1050, radius: 2.5 },
+  { name: 'Bass', position: [8.2, 6.2], color: 0xffbd66, intensity: 900, radius: 2.25 },
+  { name: 'DJ', position: [10.6, -2], color: 0x69ddff, intensity: 860, radius: 2.3 },
+  { name: 'Drum', position: [0, -7.5], color: 0x7ccfff, intensity: 1120, radius: 2.9 },
+  { name: 'Piano', position: [-10.6, -2], color: 0xffd27d, intensity: 920, radius: 2.45 },
+  { name: 'Guitar', position: [-8.2, 6.2], color: 0xa7ff5b, intensity: 900, radius: 2.25 }
 ];
 
 const performerLights = new Map();
 lightTargets.forEach(({ name, position: [x, z], color, intensity, radius }) => {
-  const light = new THREE.SpotLight(color, intensity, 35, THREE.MathUtils.degToRad(15), 0.5, 1.2);
+  const light = new THREE.SpotLight(color, intensity, 35, THREE.MathUtils.degToRad(11.5), 0.32, 1.35);
+  light.intensity = 0;
   light.position.set(x * 0.42, canopyY - 0.7, z * 0.35);
   light.target.position.set(x, 0, z);
   light.castShadow = true;
@@ -330,11 +481,18 @@ lightTargets.forEach(({ name, position: [x, z], color, intensity, radius }) => {
   const beamHeight = canopyY - 0.5;
   const beam = new THREE.Mesh(
     new THREE.ConeGeometry(radius, beamHeight, 32, 1, true),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.032, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
   );
   beam.position.set(x, beamHeight / 2, z);
   scene.add(beam);
-  performerLights.set(name, { light, beam, intensity, beamOpacity: 0.032 });
+  const floorGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(radius * 0.95, 48),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+  );
+  floorGlow.rotation.x = -Math.PI / 2;
+  floorGlow.position.set(x, 0.045, z);
+  scene.add(floorGlow);
+  performerLights.set(name, { light, beam, floorGlow, intensity, beamOpacity: 0.045, currentIntensity: 0, currentBeamOpacity: 0, currentFloorOpacity: 0 });
 });
 
 const stageWash = new THREE.SpotLight(0x9edcff, 650, 42, THREE.MathUtils.degToRad(46), 0.72, 1.2);
@@ -342,7 +500,7 @@ stageWash.position.set(0, canopyY - 1, 0);
 stageWash.target.position.set(0, 0, 0);
 scene.add(stageWash, stageWash.target);
 
-const frontFill = new THREE.DirectionalLight(0x8db4ce, 2.1);
+const frontFill = new THREE.DirectionalLight(0x9ac6d7, 1.9);
 frontFill.position.set(0, 7, 18);
 scene.add(frontFill);
 
@@ -359,7 +517,7 @@ performanceRoot.name = 'BandPerformance';
 scene.add(performanceRoot);
 
 const PLAYER_SCALE = 0.025;
-const mixers = [];
+const performerMixers = new Map();
 const heldSticks = [];
 const stickTransforms = {
   left: {
@@ -376,7 +534,10 @@ const heldInstruments = [];
 const performers = [];
 const playerMasks = new Map();
 let activeMask = null;
-let animationsPaused = false;
+const stoppedPerformers = new Set();
+const performerActivity = new Map();
+let performancePaused = false;
+let lightingFocus = null;
 const finalTransforms = {
   guitar: {
     offset: [-0.05, -0.4, 0.12],
@@ -449,20 +610,14 @@ function markInteractive(root, performerName) {
   });
 }
 
-function playFirstAnimation(model) {
+function playFirstAnimation(model, performerName) {
   const clip = model.animations.find((item) => item.duration > 0 && item.tracks.length > 0);
   if (!clip) return;
   const mixer = new THREE.AnimationMixer(model);
   mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
-  mixer.timeScale = animationsPaused ? 0 : 1;
+  mixer.timeScale = 0;
   mixer.update(0);
-  mixers.push(mixer);
-}
-
-function toggleAllAnimations() {
-  animationsPaused = !animationsPaused;
-  mixers.forEach((mixer) => { mixer.timeScale = animationsPaused ? 0 : 1; });
-  if (focusedArtist) artistMotionButton.textContent = animationsPaused ? 'PLAY MOTION' : 'PAUSE MOTION';
+  performerMixers.set(performerName, mixer);
 }
 
 function loadFBX(file) {
@@ -505,7 +660,7 @@ function placeStandingPlayer(model, config) {
   performanceRoot.add(wrapper);
   prepareModel(model);
   markInteractive(model, config.name);
-  playFirstAnimation(model);
+  playFirstAnimation(model, config.name);
   performers.push(model);
 }
 
@@ -770,7 +925,7 @@ async function placeDrumPerformance() {
   markInteractive(drumSet, 'Drum');
   markInteractive(drummer, 'Drum');
   performanceRoot.add(drumGroup);
-  playFirstAnimation(drummer);
+  playFirstAnimation(drummer, 'Drum');
   performers.push(drummer);
   makeHeldSticks(stickModel, drummer);
 }
@@ -817,12 +972,57 @@ function findPerformerAt(clientX, clientY) {
 }
 
 function updateSelectedLighting(name) {
+  lightingFocus = name;
+}
+
+function updatePerformanceVisuals(delta) {
   performerLights.forEach((entry, performerName) => {
-    const selected = !name || performerName === name;
-    entry.light.intensity = selected ? entry.intensity * (name ? 1.35 : 1) : 0;
-    entry.beam.material.opacity = selected ? (name ? 0.075 : entry.beamOpacity) : 0;
+    const stemName = stemNameForPerformer(performerName);
+    const manuallyStopped = stoppedPerformers.has(performerName);
+    let rawActivity = 0;
+
+    if (!performancePaused && !manuallyStopped) {
+      if (bandAudioReady && stemName) {
+        const normalizedLevel = bandAudio.getStemActivity(stemName);
+        rawActivity = THREE.MathUtils.clamp((normalizedLevel - 0.065) / 0.58, 0, 1);
+      } else if (!bandAudioReady) {
+        rawActivity = 1;
+      }
+    }
+
+    const previous = performerActivity.get(performerName) || 0;
+    const response = rawActivity > previous ? 0.055 : 0.24;
+    const activity = THREE.MathUtils.lerp(previous, rawActivity, 1 - Math.exp(-delta / response));
+    performerActivity.set(performerName, activity);
+
+    const focusFactor = lightingFocus && lightingFocus !== performerName ? 0.08 : 1;
+    const focusBoost = lightingFocus === performerName ? 1.3 : 1;
+    const targetIntensity = entry.intensity * activity * focusFactor * focusBoost;
+    const targetBeamOpacity = entry.beamOpacity * activity * focusFactor * (lightingFocus === performerName ? 2.2 : 1);
+    const targetFloorOpacity = 0.24 * activity * focusFactor * (lightingFocus === performerName ? 1.35 : 1);
+    entry.currentIntensity = THREE.MathUtils.damp(entry.currentIntensity, targetIntensity, 8, delta);
+    entry.currentBeamOpacity = THREE.MathUtils.damp(entry.currentBeamOpacity, targetBeamOpacity, 7, delta);
+    entry.currentFloorOpacity = THREE.MathUtils.damp(entry.currentFloorOpacity, targetFloorOpacity, 7, delta);
+    entry.light.intensity = entry.currentIntensity;
+    entry.beam.material.opacity = entry.currentBeamOpacity;
+    entry.floorGlow.material.opacity = entry.currentFloorOpacity;
+
+    const mixer = performerMixers.get(performerName);
+    if (mixer) mixer.timeScale = activity > 0.055 ? 1 : 0;
   });
-  stageWash.intensity = name ? 80 : 650;
+
+  const washTarget = performancePaused
+    ? 0
+    : lightingFocus
+      ? 180
+      : bandAudioReady
+        ? (bandAudio.isPlaying ? 165 : 0)
+        : 360;
+  stageWash.intensity = THREE.MathUtils.damp(stageWash.intensity, washTarget, 4.5, delta);
+  const rigTarget = performancePaused ? 100 : lightingFocus ? 430 : 900;
+  mainRigWash.intensity = THREE.MathUtils.damp(mainRigWash.intensity, rigTarget, 3.2, delta);
+  const beamTarget = performancePaused ? 0.003 : lightingFocus ? 0.009 : 0.014;
+  mainLightBeam.material.opacity = THREE.MathUtils.damp(mainLightBeam.material.opacity, beamTarget, 3.2, delta);
 }
 
 function beginCameraTransition(position, target, onComplete) {
@@ -839,7 +1039,7 @@ function beginCameraTransition(position, target, onComplete) {
 
 function focusArtist(name) {
   const target = focusPoints.get(name);
-  if (!target || focusedArtist || freeCameraEnabled) return;
+  if (!target || focusedArtist) return;
   focusedArtist = name;
   homeCameraPosition.copy(camera.position);
   homeOrbitTarget.copy(orbit.target);
@@ -849,7 +1049,7 @@ function focusArtist(name) {
   beginCameraTransition(cameraPosition, target);
   updateSelectedLighting(name);
   artistName.textContent = name.toUpperCase();
-  artistMotionButton.textContent = animationsPaused ? 'PLAY MOTION' : 'PAUSE MOTION';
+  updateArtistControlButton();
   artistPanel.classList.add('is-open');
   artistPanel.setAttribute('aria-hidden', 'false');
   soloStemForPerformer(name);
@@ -860,16 +1060,50 @@ function stemNameForPerformer(performerName) {
   return Object.entries(STEM_TO_PERFORMER).find(([, performer]) => performer === performerName)?.[0];
 }
 
+function performerNameForStem(stemName) {
+  return STEM_TO_PERFORMER[stemName];
+}
+
+function updateArtistControlButton() {
+  if (!focusedArtist) return;
+  artistMotionButton.textContent = stoppedPerformers.has(focusedArtist)
+    ? '해당 아티스트 다시 재생하기'
+    : '해당 아티스트 정지하기';
+}
+
+function syncPerformanceStems() {
+  if (!bandAudioReady) return;
+  bandAudio.stems.forEach((stemName) => {
+    const performerName = performerNameForStem(stemName);
+    const matchesFocus = !focusedArtist || performerName === focusedArtist;
+    const shouldPlay = matchesFocus && !stoppedPerformers.has(performerName);
+    bandAudio.setStemActive(stemName, shouldPlay);
+  });
+}
+
+function setPerformancePaused(paused) {
+  performancePaused = Boolean(paused);
+  if (bandAudioReady) {
+    if (performancePaused) {
+      bandAudio.pause();
+    } else {
+      syncPerformanceStems();
+      if (bandAudio.activeStems.length > 0 && !bandAudio.isPlaying) bandAudio.play();
+    }
+    audioPlayButton.textContent = performancePaused ? '▶ PLAY' : '❚❚ PAUSE';
+  }
+}
+
+function togglePerformance() {
+  setPerformancePaused(bandAudioReady ? bandAudio.isPlaying : !performancePaused);
+}
+
 // 공연자를 클릭해 포커스하면 해당 파트만 솔로로 들리게 하고, 나머지 파트는 음소거한다.
 function soloStemForPerformer(performerName) {
   if (!bandAudioReady) return;
   const stemName = stemNameForPerformer(performerName);
   if (!stemName || !bandAudio.stems.includes(stemName)) return;
-  bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, name === stemName));
-  if (!bandAudio.isPlaying) {
-    bandAudio.play();
-    audioPlayButton.textContent = '❚❚ PAUSE';
-  }
+  syncPerformanceStems();
 }
 
 // ── 파트별 믹싱 패널 (SELECTED ARTIST 패널 안에서 열림) ──────────
@@ -887,7 +1121,6 @@ function fmtDb(v) { return v === 0 ? '0 dB' : `${v > 0 ? '+' : ''}${Number(v).to
 function applyStemSettings(stemName, settings) {
   bandAudio.setVolume(stemName, settings.volume);
   bandAudio.setPitch(stemName, settings.pitch);
-  bandAudio.setSpeed(stemName, settings.speed);
   bandAudio.setPan(stemName, settings.pan);
   bandAudio.setEQ(stemName, 'low', settings.eq.low);
   bandAudio.setEQ(stemName, 'mid', settings.eq.mid);
@@ -898,7 +1131,6 @@ function applyStemSettings(stemName, settings) {
 function renderMixSliders(settings) {
   mixVolSlider.value = Math.round(settings.volume * 100);
   mixPitchSlider.value = settings.pitch;
-  mixSpeedSlider.value = Math.round(settings.speed * 100);
   mixPanSlider.value = Math.round(settings.pan * 100);
   mixEqLowSlider.value = settings.eq.low;
   mixEqMidSlider.value = settings.eq.mid;
@@ -907,7 +1139,6 @@ function renderMixSliders(settings) {
 
   mixVolVal.textContent = `${mixVolSlider.value}%`;
   mixPitchVal.textContent = fmtPitch(settings.pitch);
-  mixSpeedVal.textContent = `${settings.speed.toFixed(2)}×`;
   mixPanVal.textContent = fmtPan(settings.pan);
   mixEqLowVal.textContent = fmtDb(settings.eq.low);
   mixEqMidVal.textContent = fmtDb(settings.eq.mid);
@@ -948,12 +1179,6 @@ mixPitchSlider.addEventListener('input', () => {
   bandAudio.setPitch(mixTargetStem, st);
   mixPitchVal.textContent = fmtPitch(st);
 });
-mixSpeedSlider.addEventListener('input', () => {
-  if (!mixTargetStem) return;
-  const sp = mixSpeedSlider.value / 100;
-  bandAudio.setSpeed(mixTargetStem, sp);
-  mixSpeedVal.textContent = `${sp.toFixed(2)}×`;
-});
 mixPanSlider.addEventListener('input', () => {
   if (!mixTargetStem) return;
   const pan = mixPanSlider.value / 100;
@@ -980,7 +1205,9 @@ mixReverbSlider.addEventListener('input', () => {
 
 // 저장: 지금 슬라이더 값을 그대로 확정하고 패널을 닫는다.
 artistSaveButton.addEventListener('click', () => {
+  const savedArtist = focusedArtist;
   exitArtistFocus();
+  if (savedArtist) audioStatus.textContent = `${savedArtist.toUpperCase()} 파트 설정이 전체 믹스에 저장되었습니다.`;
 });
 
 function exitArtistFocus() {
@@ -990,7 +1217,7 @@ function exitArtistFocus() {
   artistPanel.classList.remove('is-open');
   artistPanel.setAttribute('aria-hidden', 'true');
   updateSelectedLighting(null);
-  if (bandAudioReady) bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, true));
+  syncPerformanceStems();
   closeMixPanel();
   beginCameraTransition(homeCameraPosition, homeOrbitTarget, () => {
     if (!focusedArtist && returningArtist) {
@@ -1025,12 +1252,12 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
 });
 renderer.domElement.addEventListener('pointerup', (event) => {
   const moved = pointerStart.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
-  if (moved > 6 || focusedArtist || freeCameraEnabled) return;
+  if (moved > 6 || focusedArtist) return;
   const performer = findPerformerAt(event.clientX, event.clientY);
   if (performer) focusArtist(performer);
 });
 renderer.domElement.addEventListener('pointermove', (event) => {
-  if (event.buttons || focusedArtist || freeCameraEnabled) {
+  if (event.buttons || focusedArtist) {
     container.classList.remove('can-select');
     return;
   }
@@ -1039,104 +1266,38 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 
 artistExitButton.addEventListener('click', revertAndExitArtistFocus);
 artistMotionButton.addEventListener('click', () => {
-  toggleAllAnimations();
-  artistMotionButton.textContent = animationsPaused ? 'PLAY MOTION' : 'PAUSE MOTION';
-});
-
-// V toggles the preserved first-person free camera. WASD moves, Q/E lowers/raises.
-const pressedKeys = new Set();
-const savedOrbitPosition = new THREE.Vector3();
-const savedOrbitQuaternion = new THREE.Quaternion();
-let freeCameraEnabled = false;
-const moveSpeed = 5;
-const mouseSensitivity = 0.002;
-
-function toggleFreeCamera() {
-  if (focusedArtist || cameraTransition) return;
-  freeCameraEnabled = !freeCameraEnabled;
-  pressedKeys.clear();
-  container.classList.toggle('free-camera', freeCameraEnabled);
-  orbit.enabled = !freeCameraEnabled;
-
-  if (freeCameraEnabled) {
-    savedOrbitPosition.copy(camera.position);
-    savedOrbitQuaternion.copy(camera.quaternion);
-    camera.rotation.reorder('YXZ');
+  if (!focusedArtist) return;
+  const stemName = stemNameForPerformer(focusedArtist);
+  if (stoppedPerformers.has(focusedArtist)) {
+    stoppedPerformers.delete(focusedArtist);
+    if (bandAudioReady && stemName) bandAudio.setStemActive(stemName, true);
+    if (bandAudioReady && !performancePaused && !bandAudio.isPlaying) bandAudio.play();
   } else {
-    if (document.pointerLockElement) document.exitPointerLock();
-    camera.position.copy(savedOrbitPosition);
-    camera.quaternion.copy(savedOrbitQuaternion);
-    orbit.enabled = true;
-    orbit.update();
+    stoppedPerformers.add(focusedArtist);
+    if (bandAudioReady && stemName) bandAudio.setStemActive(stemName, false);
   }
-}
-
-function logCamera() {
-  const p = camera.position;
-  const r = camera.rotation;
-  console.log('[Camera Transform]', {
-    position: { x: +p.x.toFixed(4), y: +p.y.toFixed(4), z: +p.z.toFixed(4) },
-    rotation: { x: +r.x.toFixed(4), y: +r.y.toFixed(4), z: +r.z.toFixed(4), order: r.order }
-  });
-}
+  updateArtistControlButton();
+});
 
 window.addEventListener('keydown', (event) => {
   const isFormControl = event.target instanceof Element && event.target.closest('input, button');
   if (event.code === 'Space' && !event.repeat && !isFormControl) {
     event.preventDefault();
-    toggleAllAnimations();
-  }
-  if (event.code === 'KeyV' && !event.repeat) toggleFreeCamera();
-  if (event.code === 'KeyC' && !event.repeat) logCamera();
-  if (freeCameraEnabled && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(event.code)) {
-    event.preventDefault();
-    pressedKeys.add(event.code);
+    togglePerformance();
   }
 });
-window.addEventListener('keyup', (event) => pressedKeys.delete(event.code));
-window.addEventListener('blur', () => pressedKeys.clear());
-
-renderer.domElement.addEventListener('click', () => {
-  if (freeCameraEnabled && document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
-});
-window.addEventListener('mousemove', (event) => {
-  if (!freeCameraEnabled || document.pointerLockElement !== renderer.domElement) return;
-  camera.rotation.y -= event.movementX * mouseSensitivity;
-  camera.rotation.x = THREE.MathUtils.clamp(
-    camera.rotation.x - event.movementY * mouseSensitivity,
-    -Math.PI / 2 + 0.01,
-    Math.PI / 2 - 0.01
-  );
-});
-
-function updateFreeCamera(delta) {
-  if (!freeCameraEnabled) return;
-  const distance = moveSpeed * delta;
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-  forward.y = 0;
-  right.y = 0;
-  forward.normalize();
-  right.normalize();
-  if (pressedKeys.has('KeyW')) camera.position.addScaledVector(forward, distance);
-  if (pressedKeys.has('KeyS')) camera.position.addScaledVector(forward, -distance);
-  if (pressedKeys.has('KeyA')) camera.position.addScaledVector(right, -distance);
-  if (pressedKeys.has('KeyD')) camera.position.addScaledVector(right, distance);
-  if (pressedKeys.has('KeyQ')) camera.position.y -= distance;
-  if (pressedKeys.has('KeyE')) camera.position.y += distance;
-}
 
 function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.05);
-  mixers.forEach((mixer) => mixer.update(delta));
+  updatePerformanceVisuals(delta);
+  performerMixers.forEach((mixer) => mixer.update(delta));
   updateHeldSticks();
   updateHeldMicrophones();
   updateHeldInstruments();
   updatePlayerMasks();
-  updateFreeCamera(delta);
   updateCameraTransition(performance.now());
-  if (!freeCameraEnabled && !focusedArtist && !cameraTransition) orbit.update();
+  if (!focusedArtist && !cameraTransition) orbit.update();
   renderer.render(scene, camera);
 }
 animate();

@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:4000/api';
+// 상대경로: 로컬은 vite proxy, 배포는 nginx가 실제 백엔드로 연결해준다.
+const API_BASE = '/api';
 const dialog = document.querySelector('#authDialog');
 const form = document.querySelector('#authForm');
 const usernameInput = document.querySelector('#authUsername');

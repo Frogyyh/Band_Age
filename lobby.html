@@ -132,11 +132,17 @@
 
   <!-- 로딩 화면 -->
   <div class="loading-screen" id="loadingScreen" aria-hidden="true">
-    <div class="loading-box">
-      <p class="loading-title">LOADING</p>
-      <div class="loading-spinner"></div>
-      <p class="loading-sub" id="loadingSub">무대를 준비하는 중…</p>
-      <div class="loading-bar"><span class="loading-bar-fill" id="loadingBarFill"></span></div>
+    <div class="loading-stack">
+      <div class="loading-box">
+        <p class="loading-title">LOADING</p>
+        <div class="loading-spinner"></div>
+        <p class="loading-sub" id="loadingSub">무대를 준비하는 중…</p>
+        <div class="loading-bar"><span class="loading-bar-fill" id="loadingBarFill"></span></div>
+      </div>
+      <div class="loading-tmi-card">
+        <p class="loading-tmi-label">BAND-AGE TMI</p>
+        <p class="loading-tmi" id="loadingTmi"></p>
+      </div>
     </div>
     <button class="music-toggle" id="loadingSoundToggle" type="button" aria-label="원곡 미리듣기 켜기 또는 끄기" aria-pressed="true" style="display:none">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

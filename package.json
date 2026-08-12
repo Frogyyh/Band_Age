@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "start": "node server/index.js",
     "server:dev": "nodemon server/index.js",
-    "audio-server": "audio-server\\start_server.bat"
+    "audio-server": "audio-server\\start_server.bat",
+    "dev:all": "concurrently -n backend,frontend,audio -c blue,green,yellow \"npm:server:dev\" \"npm:dev\" \"npm:audio-server\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -25,6 +26,7 @@
     "three": "^0.179.1"
   },
   "devDependencies": {
+    "concurrently": "^10.0.4",
     "nodemon": "^3.1.4",
     "vite": "^7.1.1"
   }

@@ -44,9 +44,14 @@ export class BandAgeAudio extends EventTarget {
     this._stemPanners   = {};  // { name: StereoPannerNode }
     this._stemEQs       = {};  // { name: { low, mid, high: BiquadFilterNode } }
     this._stemReverbs   = {};  // { name: { convolver, dryGain, wetGain } }
+    this._stemAnalysers = {};  // { name: AnalyserNode }
+    this._stemLevelData = {};  // { name: Uint8Array }
+    this._stemLevelRefs = {};  // { name: number } 파트별 기준 음량
+    this._masterGain    = null;
+    this._masterLimiter = null;
 
     // ── 설정 ─────────────────────────────────────────────────
-    // stemSettings[name]: { volume, pitch, speed, pan, eq:{low,mid,high}, reverb }
+    // stemSettings[name]: { volume, pitch, pan, eq:{low,mid,high}, reverb }
     this._stemSettings  = {};
     this._activeStems   = new Set();
 
@@ -223,14 +228,6 @@ export class BandAgeAudio extends EventTarget {
     if (this._stemSTs[name]) this._stemSTs[name].pitch = Math.pow(2, st / 12);
   }
 
-  /** @param {string} name @param {number} multiplier 0.25 ~ 2.0  (pitch 영향 없음) */
-  setSpeed(name, multiplier) {
-    if (!this._stemSettings[name]) return;
-    const sp = Math.max(0.25, Math.min(2.0, Number(multiplier)));
-    this._stemSettings[name].speed = sp;
-    if (this._stemSTs[name]) this._stemSTs[name].tempo = sp;
-  }
-
   /** @param {string} name @param {number} value -1.0(L) ~ +1.0(R) */
   setPan(name, value) {
     if (!this._stemSettings[name]) return;
@@ -265,6 +262,56 @@ export class BandAgeAudio extends EventTarget {
   getStemSettings(name) {
     const s = this._stemSettings[name];
     return s ? { ...s, eq: { ...s.eq } } : null;
+  }
+
+  /** 현재 stem 출력의 RMS 레벨을 0~1 범위로 반환합니다. */
+  getStemLevel(name) {
+    const analyser = this._stemAnalysers[name];
+    const data = this._stemLevelData[name];
+    if (!analyser || !data || !this._activeStems.has(name) || !this._isPlaying) return 0;
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const sample = (data[i] - 128) / 128;
+      sum += sample * sample;
+    }
+    return Math.sqrt(sum / data.length);
+  }
+
+  /** 파트별 기준 음량으로 보정한 현재 활동량을 반환합니다. */
+  getStemActivity(name) {
+    const reference = this._stemLevelRefs[name] || 0.03;
+    return Math.min(1, this.getStemLevel(name) / reference);
+  }
+
+  /** 플레이라인 UI용으로 stem 전체의 RMS 윤곽을 지정한 개수만큼 추출합니다. */
+  getStemEnvelope(name, bins = 240) {
+    const buffer = this._stemBuffers[name];
+    if (!buffer) return [];
+    const count = Math.max(16, Math.floor(bins));
+    const channelCount = buffer.numberOfChannels;
+    const framesPerBin = Math.max(1, Math.floor(buffer.length / count));
+    const envelope = new Array(count).fill(0);
+    let peak = 0;
+    for (let bin = 0; bin < count; bin++) {
+      const start = bin * framesPerBin;
+      const end = Math.min(buffer.length, start + framesPerBin);
+      let sum = 0;
+      let samples = 0;
+      const stride = Math.max(1, Math.floor((end - start) / 256));
+      for (let ch = 0; ch < channelCount; ch++) {
+        const data = buffer.getChannelData(ch);
+        for (let i = start; i < end; i += stride) {
+          sum += data[i] * data[i];
+          samples++;
+        }
+      }
+      const rms = samples ? Math.sqrt(sum / samples) : 0;
+      envelope[bin] = rms;
+      peak = Math.max(peak, rms);
+    }
+    if (peak > 0) return envelope.map((value) => Math.min(1, value / peak));
+    return envelope;
   }
 
   // ════════════════════════════════════════════════════════════
@@ -305,8 +352,10 @@ export class BandAgeAudio extends EventTarget {
       this._sessionId = null;
     }
     if (this._audioCtx) { this._audioCtx.close(); this._audioCtx = null; }
+    this._masterGain = null; this._masterLimiter = null;
     this._stemBuffers = {}; this._stemGains = {}; this._stemPanners = {};
-    this._stemEQs = {}; this._stemReverbs = {}; this._stemSettings = {};
+    this._stemEQs = {}; this._stemReverbs = {}; this._stemAnalysers = {};
+    this._stemLevelData = {}; this._stemLevelRefs = {}; this._stemSettings = {};
     this._activeStems = new Set();
     this._duration = 0;
   }
@@ -318,17 +367,29 @@ export class BandAgeAudio extends EventTarget {
     this.stop();
     this._cleanupSTNodes();
     this._stemBuffers = {}; this._stemGains = {}; this._stemPanners = {};
-    this._stemEQs = {}; this._stemReverbs = {}; this._stemSettings = {};
+    this._stemEQs = {}; this._stemReverbs = {}; this._stemAnalysers = {};
+    this._stemLevelData = {}; this._stemLevelRefs = {}; this._stemSettings = {};
     this._activeStems = new Set();
     this._duration = 0;
 
     this._audioCtx = new AudioContext();
+    this._masterGain = this._audioCtx.createGain();
+    this._masterGain.gain.value = 0.82;
+    this._masterLimiter = this._audioCtx.createDynamicsCompressor();
+    this._masterLimiter.threshold.value = -8;
+    this._masterLimiter.knee.value = 5;
+    this._masterLimiter.ratio.value = 12;
+    this._masterLimiter.attack.value = 0.003;
+    this._masterLimiter.release.value = 0.18;
+    this._masterGain.connect(this._masterLimiter);
+    this._masterLimiter.connect(this._audioCtx.destination);
 
     await Promise.all(Object.entries(stemsMap).map(async ([name, url]) => {
       const fullUrl = url.startsWith('http') ? url : `${this._origin}${url}`;
       const buf = await fetch(fullUrl).then(r => r.arrayBuffer());
       this._stemBuffers[name] = await this._audioCtx.decodeAudioData(buf);
       this._duration = Math.max(this._duration, this._stemBuffers[name].duration);
+      this._stemLevelRefs[name] = this._measureBufferReference(this._stemBuffers[name]);
 
       // ── 오디오 체인 구성 ────────────────────────────────────
       // ScriptProcessor(ST) → Gain → EQ×3 → Panner → dryGain ─┐
@@ -336,6 +397,9 @@ export class BandAgeAudio extends EventTarget {
       //                              └──→ Convolver → wetGain ──┘
       const gain = this._audioCtx.createGain();
       gain.gain.value = 0;
+
+      const analyser = this._audioCtx.createAnalyser();
+      analyser.fftSize = 256;
 
       const eqLow = this._audioCtx.createBiquadFilter();
       eqLow.type = 'lowshelf'; eqLow.frequency.value = 250; eqLow.gain.value = 0;
@@ -354,18 +418,20 @@ export class BandAgeAudio extends EventTarget {
       convolver.buffer = this._generateIR(this._audioCtx);
       const wetGain = this._audioCtx.createGain(); wetGain.gain.value = 0;
 
-      gain.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh);
+      gain.connect(analyser); analyser.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh);
       eqHigh.connect(panner);
       panner.connect(dryGain); panner.connect(convolver); convolver.connect(wetGain);
-      dryGain.connect(this._audioCtx.destination);
-      wetGain.connect(this._audioCtx.destination);
+      dryGain.connect(this._masterGain);
+      wetGain.connect(this._masterGain);
 
       this._stemGains[name]   = gain;
+      this._stemAnalysers[name] = analyser;
+      this._stemLevelData[name] = new Uint8Array(analyser.fftSize);
       this._stemEQs[name]     = { low: eqLow, mid: eqMid, high: eqHigh };
       this._stemPanners[name] = panner;
       this._stemReverbs[name] = { convolver, dryGain, wetGain };
       this._stemSettings[name] = {
-        volume: 1, pitch: 0, speed: 1, pan: 0,
+        volume: 1, pitch: 0, pan: 0,
         eq: { low: 0, mid: 0, high: 0 }, reverb: 0,
       };
     }));
@@ -386,34 +452,56 @@ export class BandAgeAudio extends EventTarget {
     return ir;
   }
 
+  _measureBufferReference(buffer) {
+    const data = buffer.getChannelData(0);
+    const windowCount = 180;
+    const windowSize = Math.max(1, Math.floor(data.length / windowCount));
+    const levels = [];
+    for (let window = 0; window < windowCount; window++) {
+      const start = window * windowSize;
+      const end = Math.min(data.length, start + windowSize);
+      const stride = Math.max(1, Math.floor((end - start) / 256));
+      let sum = 0;
+      let samples = 0;
+      for (let i = start; i < end; i += stride) {
+        sum += data[i] * data[i];
+        samples++;
+      }
+      levels.push(samples ? Math.sqrt(sum / samples) : 0);
+    }
+    levels.sort((a, b) => a - b);
+    return Math.max(0.004, levels[Math.floor(levels.length * 0.82)] || 0.03);
+  }
+
   // ════════════════════════════════════════════════════════════
   // 믹스다운 렌더링 (다운로드용)
   // ════════════════════════════════════════════════════════════
   /**
-   * 현재 활성화(솔로)된 stem들을 현재 볼륨/팬/EQ/리버브/피치/스피드 설정 그대로 오프라인 렌더링해
+   * 현재 활성화(솔로)된 stem들을 현재 볼륨/팬/EQ/리버브/피치 설정 그대로 오프라인 렌더링해
    * 하나의 WAV Blob으로 합친다.
    *
-   * 피치/스피드가 기본값이 아닌 stem은 SoundTouch를 ScriptProcessorNode 없이 동기 루프로 직접 돌려
+   * 피치가 기본값이 아닌 stem은 SoundTouch를 ScriptProcessorNode 없이 동기 루프로 직접 돌려
    * (extract()를 반복 호출) 새 AudioBuffer를 먼저 만든 뒤, 그 결과를 일반 AudioBufferSourceNode로
    * OfflineAudioContext에 태운다. ScriptProcessorNode를 OfflineAudioContext 안에서 쓰면 렌더링이
    * 멈춰버리는 문제가 있어(실시간 오디오 콜백 전제 API라 오프라인 컨텍스트와 호환이 안 됨) 이 방식을 쓴다.
    * @returns {Promise<Blob|null>} WAV Blob, 활성 stem이 없으면 null
    */
-  async renderMixdown() {
-    if (!this._audioCtx || this._activeStems.size === 0) return null;
+  async renderMixdown(stemNames = [...this._activeStems]) {
+    if (!this._audioCtx || stemNames.length === 0) return null;
 
     const sampleRate = this._audioCtx.sampleRate;
 
-    // 1) 피치/스피드가 걸린 stem은 미리 동기 처리해 새 AudioBuffer로 만들어 둔다.
-    const stemNames = [...this._activeStems];
+    // 1) 피치가 걸린 stem은 미리 동기 처리해 새 AudioBuffer로 만들어 둔다.
+    stemNames = stemNames.filter((name) => this._stemBuffers[name]);
+    if (stemNames.length === 0) return null;
     const renderBuffers = {};
     let maxDuration = 0;
     for (const name of stemNames) {
       const settings = this._stemSettings[name];
       const original = this._stemBuffers[name];
-      const buffer = (settings.pitch === 0 && settings.speed === 1)
+      const buffer = settings.pitch === 0
         ? original
-        : await this._timeStretchBuffer(original, settings.pitch, settings.speed, sampleRate);
+        : await this._pitchShiftBuffer(original, settings.pitch, sampleRate);
       renderBuffers[name] = buffer;
       maxDuration = Math.max(maxDuration, buffer.duration);
     }
@@ -421,6 +509,16 @@ export class BandAgeAudio extends EventTarget {
     // 2) 볼륨/EQ/팬/리버브는 기존과 동일하게 OfflineAudioContext 오디오 그래프로 처리한다.
     const length = Math.ceil(maxDuration * sampleRate);
     const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
+    const masterGain = offlineCtx.createGain();
+    masterGain.gain.value = 0.82;
+    const limiter = offlineCtx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 5;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.18;
+    masterGain.connect(limiter);
+    limiter.connect(offlineCtx.destination);
 
     stemNames.forEach((name) => {
       const settings = this._stemSettings[name];
@@ -449,8 +547,8 @@ export class BandAgeAudio extends EventTarget {
       gain.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh);
       eqHigh.connect(panner);
       panner.connect(dryGain); panner.connect(convolver); convolver.connect(wetGain);
-      dryGain.connect(offlineCtx.destination);
-      wetGain.connect(offlineCtx.destination);
+      dryGain.connect(masterGain);
+      wetGain.connect(masterGain);
 
       source.start(0);
     });
@@ -460,17 +558,15 @@ export class BandAgeAudio extends EventTarget {
   }
 
   /**
-   * SoundTouch를 오디오 노드 없이 순수 JS 루프로 돌려 피치/템포가 적용된 새 AudioBuffer를 만든다.
+   * SoundTouch를 오디오 노드 없이 순수 JS 루프로 돌려 길이를 유지한 채 피치가 적용된 새 AudioBuffer를 만든다.
    * @param {AudioBuffer} buffer 원본
    * @param {number} pitchSemitones -12~12
-   * @param {number} tempo 0.25~2.0 (1.0 = 원속도)
    * @param {number} sampleRate
    * @returns {Promise<AudioBuffer>}
    */
-  async _timeStretchBuffer(buffer, pitchSemitones, tempo, sampleRate) {
+  async _pitchShiftBuffer(buffer, pitchSemitones, sampleRate) {
     const st = new SoundTouch();
     st.pitch = Math.pow(2, pitchSemitones / 12);
-    st.tempo = tempo;
 
     const bufSrc = new WebAudioBufferSource(buffer, () => {});
     bufSrc.position = 0;
@@ -510,7 +606,7 @@ export class BandAgeAudio extends EventTarget {
   /** 모든 stem의 믹스/이펙트 설정을 기본값으로 복구하고 전체 합주 상태로 되돌린다. */
   resetAll() {
     this.stems.forEach((name) => {
-      this._stemSettings[name] = { volume: 1, pitch: 0, speed: 1, pan: 0, eq: { low: 0, mid: 0, high: 0 }, reverb: 0 };
+      this._stemSettings[name] = { volume: 1, pitch: 0, pan: 0, eq: { low: 0, mid: 0, high: 0 }, reverb: 0 };
       if (this._stemGains[name]) this._stemGains[name].gain.value = this._activeStems.has(name) ? 1 : 0;
       if (this._stemPanners[name]) this._stemPanners[name].pan.value = 0;
       if (this._stemEQs[name]) {
@@ -524,7 +620,6 @@ export class BandAgeAudio extends EventTarget {
       }
       if (this._stemSTs[name]) {
         this._stemSTs[name].pitch = 1.0;
-        this._stemSTs[name].tempo = 1.0;
       }
       this.setStemActive(name, true);
     });
@@ -540,13 +635,13 @@ export class BandAgeAudio extends EventTarget {
     if (this._stemSTNodes[name]) {
       try { this._stemSTNodes[name].disconnect(); } catch (_) {}
     }
-    const { pitch, speed } = this._stemSettings[name];
+    const { pitch } = this._stemSettings[name];
     const st = new SoundTouch();
     st.pitch = Math.pow(2, pitch / 12);
-    st.tempo = speed;
     const bufSrc = new WebAudioBufferSource(this._stemBuffers[name], () => {});
-    bufSrc.position = Math.floor(Math.max(0, offset) * this._audioCtx.sampleRate);
     const filter = new SimpleFilter(bufSrc, st);
+    const sourceFrame = Math.floor(Math.max(0, offset) * this._stemBuffers[name].sampleRate);
+    filter.sourcePosition = Math.min(sourceFrame, this._stemBuffers[name].length - 1);
     const stNode = getWebAudioNode(this._audioCtx, filter, () => {}, 4096);
     stNode.connect(this._stemGains[name]);
     this._stemSTs[name]       = st;
