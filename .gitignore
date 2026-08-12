@@ -4,3 +4,10 @@ dist/
 .env
 .env.local
 server/uploads/
+
+# Python 음원 분리 서버 (audio-server)
+audio-server/venv/
+audio-server/.venv/
+audio-server/__pycache__/
+audio-server/uploads/
+audio-server/sessions/

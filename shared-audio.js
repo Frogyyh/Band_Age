@@ -7,7 +7,24 @@ const enabled = localStorage.getItem(ENABLED_KEY) !== 'false';
 audio.volume = 0.38;
 audio.muted = !enabled;
 
+const useIcon = toggle.dataset.style === 'icon';
+
+if (useIcon) {
+  toggle.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M4 9v6h4l5 5V4L8 9H4z"></path>
+  <path class="wave" d="M16.3 8.3a5.2 5.2 0 0 1 0 7.4"></path>
+  <path class="wave" d="M19 5.6a9 9 0 0 1 0 12.8"></path>
+  <path class="mute-x" d="M16.5 9.5l5 5M21.5 9.5l-5 5"></path>
+</svg>`;
+}
+
 function updateButton() {
+  if (useIcon) {
+    const on = !audio.muted;
+    toggle.classList.toggle('is-muted', !on);
+    toggle.setAttribute('aria-pressed', String(on));
+    return;
+  }
   const playing = !audio.paused && !audio.muted;
   toggle.textContent = playing ? 'MUSIC ON' : (audio.muted ? 'MUSIC OFF' : 'PLAY MUSIC');
   toggle.setAttribute('aria-pressed', String(playing));

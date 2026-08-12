@@ -8,6 +8,7 @@
   </head>
   <body>
     <main id="scene" aria-label="6인 밴드의 3D 원형 무대"></main>
+    <a id="lobbyButton" href="/lobby.html">← 로비로 돌아가기</a>
     <nav id="maskControls" aria-label="Player masks">
       <button class="mask-button" data-mask="frog" type="button" aria-pressed="false">FROG</button>
       <button class="mask-button" data-mask="sj" type="button" aria-pressed="false">SJ</button>
@@ -18,9 +19,63 @@
       <span>SELECTED ARTIST</span>
       <h1 id="artistName">SINGER</h1>
       <p>LIVE PERFORMANCE VIEW</p>
+
+      <div id="mixPanel">
+        <div class="mix-row">
+          <div class="mix-row-label">VOLUME <span id="mixVolVal">100%</span></div>
+          <input type="range" id="mixVolSlider" min="0" max="200" value="100" />
+        </div>
+        <div class="mix-row">
+          <div class="mix-row-label">PITCH <span id="mixPitchVal">0 st</span></div>
+          <input type="range" id="mixPitchSlider" min="-12" max="12" value="0" step="1" />
+        </div>
+        <div class="mix-row">
+          <div class="mix-row-label">SPEED <span id="mixSpeedVal">1.00×</span></div>
+          <input type="range" id="mixSpeedSlider" min="25" max="200" value="100" />
+        </div>
+        <div class="mix-row">
+          <div class="mix-row-label">PAN <span id="mixPanVal">C</span></div>
+          <input type="range" id="mixPanSlider" min="-100" max="100" value="0" step="1" />
+        </div>
+        <div class="mix-section-label">EQ</div>
+        <div class="mix-row">
+          <div class="mix-row-label">LOW <span id="mixEqLowVal">0 dB</span></div>
+          <input type="range" id="mixEqLowSlider" min="-12" max="12" value="0" step="0.5" />
+        </div>
+        <div class="mix-row">
+          <div class="mix-row-label">MID <span id="mixEqMidVal">0 dB</span></div>
+          <input type="range" id="mixEqMidSlider" min="-12" max="12" value="0" step="0.5" />
+        </div>
+        <div class="mix-row">
+          <div class="mix-row-label">HIGH <span id="mixEqHighVal">0 dB</span></div>
+          <input type="range" id="mixEqHighSlider" min="-12" max="12" value="0" step="0.5" />
+        </div>
+        <div class="mix-section-label">REVERB</div>
+        <div class="mix-row">
+          <div class="mix-row-label">MIX <span id="mixReverbVal">0%</span></div>
+          <input type="range" id="mixReverbSlider" min="0" max="100" value="0" step="1" />
+        </div>
+      </div>
+
       <button id="artistMotionButton" type="button">PAUSE MOTION</button>
-      <button id="artistExitButton" type="button">← EXIT</button>
+      <div id="artistPanelActions">
+        <button id="artistSaveButton" type="button">저장</button>
+        <button id="artistExitButton" type="button">← EXIT</button>
+      </div>
     </aside>
+    <div id="songTitle" aria-hidden="true"></div>
+    <button id="publishButton" type="button" aria-hidden="true">추출하기</button>
+    <div id="audioBar" aria-hidden="true">
+      <div id="audioBarTop">
+        <button id="audioPlayButton" type="button">▶ PLAY</button>
+        <button id="audioResetButton" type="button">↺ 되돌리기</button>
+        <span id="audioStatus">MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다</span>
+      </div>
+      <div id="audioProgressWrap">
+        <div id="audioProgressFill"></div>
+      </div>
+      <div id="audioTime">0:00 / 0:00</div>
+    </div>
     <script type="module" src="/src/stage.js"></script>
   </body>
 </html>

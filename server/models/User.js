@@ -24,10 +24,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 30,
     },
-    avatarUrl: {
-      type: String,
-      default: null,
-    },
     provider: {
       type: String,
       enum: ['local', 'google', 'kakao'],

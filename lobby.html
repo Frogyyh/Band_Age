@@ -4,25 +4,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Band-Age — 로비</title>
+  <title>Band-Age — Lobby</title>
   <link rel="icon" href="/BandAge.ico" sizes="any">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style2.css">
 </head>
 
 <body>
-  <audio id="siteMusic" src="/Coldplay - Viva La Vida.mp3" autoplay loop preload="auto"></audio>
-  <button class="music-toggle lobby-music-toggle" type="button" aria-label="배경 음악 켜기 또는 끄기" aria-pressed="true">MUSIC ON</button>
+
+  <audio id="siteMusic" src="/Coldplay - Viva La Vida.mp3" loop preload="auto"></audio>
+  <button class="music-toggle" type="button" data-style="icon" aria-label="배경 음악 켜기 또는 끄기" aria-pressed="true">MUSIC ON</button>
 
   <div class="frame">
     <div class="topbar">
-      <div class="brand-dots"><span></span><span></span><span></span></div>
-      <div class="topbar-title">Band-Age — 로비</div>
-      <div class="topbar-right">
-        <a class="link-btn" href="/">시작 화면</a>
+      <a class="topbar-brand" href="/" aria-label="Band-Age 시작 화면으로">
+        <img src="/BandAge.png" alt="Band-Age 로고">
+        <span>BAND-AGE</span>
+      </a>
+      <div class="topbar-title">WE PLAY. WE HEAL.</div>
+      <div class="topbar-right" id="authArea">
         <button class="link-btn" onclick="openProfileModal()">마이페이지</button>
       </div>
     </div>
@@ -30,22 +33,15 @@
     <div class="body-grid">
       <!-- LEFT -->
       <div class="col col-left">
-        <p class="logo">Band-Age</p>
-
-        <p class="block-label">데모 영상</p>
-        <div class="video-box" id="videoBox" onclick="toggleVideo()">
-          <svg viewBox="0 0 400 225" preserveAspectRatio="none">
-            <line class="diag" x1="220" y1="0" x2="140" y2="90"></line>
-            <line class="diag" x1="260" y1="135" x2="180" y2="225"></line>
-          </svg>
-          <div class="video-play"></div>
-          <div class="video-caption">DEMO · 0:42</div>
+        <div class="logo-hero" aria-label="Band-Age">
+          <img src="/BandAgelogo.png" alt="Band-Age — We Play, We Heal">
         </div>
 
         <div class="about-box">
-          <p>노래 한 곡을 올리면 <strong>6인조 밴드</strong>가 그 곡을 라이브로 연주합니다.</p>
-          <p>보컬 · 드럼 · 베이스 · 기타 · 피아노 · DJ — 박자와 강세에 맞춰 실시간으로 움직여요.</p>
-          <p>직접 데모를 눌러보고, 마음에 들면 내 곡을 올려서 밴드를 무대에 세워보세요.</p>
+          <p>노래 한 곡을 올리면 <strong>Band_Age의 6인조 밴드</strong>가 그 곡을 라이브로 연주합니다!</p>
+          <p>커스텀 가능한 <strong>보컬 · 드럼 · 베이스 · 기타 · 피아노 · DJ</strong> 로 당신만의 밴드를 무대에 세워보세요.</p>
+          <p><strong>Go Play, Get Healed</strong></p>
+          <p class="developer-credit">Developed by Lee Yang Ho - Jung Hyeon Young - Lee Eun Saem - Hong Suk Jun</p>
         </div>
 
         <div class="board-box">
@@ -105,7 +101,7 @@
               </div>
             </div>
             <div class="track-scroll" id="customTrackList">
-              <div class="track-empty">로그인 후 이용할 수 있어요.</div>
+              <div class="track-empty">불러오는 중...</div>
             </div>
           </div>
 
@@ -134,13 +130,22 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- 로딩 화면 -->
   <div class="loading-screen" id="loadingScreen" aria-hidden="true">
     <div class="loading-box">
       <p class="loading-title">LOADING</p>
       <div class="loading-spinner"></div>
-      <p class="loading-sub">무대를 준비하는 중…</p>
+      <p class="loading-sub" id="loadingSub">무대를 준비하는 중…</p>
       <div class="loading-bar"><span class="loading-bar-fill" id="loadingBarFill"></span></div>
     </div>
+    <button class="music-toggle" id="loadingSoundToggle" type="button" aria-label="원곡 미리듣기 켜기 또는 끄기" aria-pressed="true" style="display:none">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9v6h4l5 5V4L8 9H4z"></path>
+        <path class="wave" d="M16.3 8.3a5.2 5.2 0 0 1 0 7.4"></path>
+        <path class="wave" d="M19 5.6a9 9 0 0 1 0 12.8"></path>
+        <path class="mute-x" d="M16.5 9.5l5 5M21.5 9.5l-5 5"></path>
+      </svg>
+    </button>
   </div>
 
   <div class="overlay" id="overlay" onclick="if(event.target===this) closeModal()">
@@ -168,18 +173,23 @@
     </div>
   </div>
 
+  <div class="overlay" id="customTrackNameOverlay">
+    <div class="modal">
+      <h3>트랙 이름 설정</h3>
+      <p>다른 유저들이 알아볼 수 있게 이 음원의 이름을 정해주세요.</p>
+      <p id="customTrackNameError" class="auth-error" style="display:none"></p>
+      <input type="text" id="customTrackNameInput" placeholder="트랙 이름">
+      <button class="submit" onclick="submitCustomTrackName()">추가</button>
+      <button class="link-btn" style="width:100%; text-align:center; margin-top:8px;" onclick="closeCustomTrackNameModal()">취소</button>
+    </div>
+  </div>
+
   <div class="overlay" id="profileOverlay" onclick="if(event.target===this) closeProfileModal()">
     <div class="modal board-modal mypage-modal">
       <button class="close" onclick="closeProfileModal()">✕</button>
       <button class="link-btn" style="position:absolute; top:18px; right:52px; font-size:12px;" onclick="logout()">로그아웃</button>
       <h3>마이페이지</h3>
-      <div class="profile-avatar-row">
-        <div id="profileAvatarPreview"></div>
-        <div>
-          <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="submitAvatar(event)">
-          <button class="link-btn" style="border:2px solid var(--ink); padding:6px 12px;" onclick="document.getElementById('avatarInput').click()">사진 변경</button>
-        </div>
-      </div>
+      <p id="profileUsername" style="margin:20px 0 16px; font-size:13px; color:var(--mute);"></p>
       <p id="profileError" class="auth-error" style="display:none"></p>
       <input type="text" id="profileNickname" placeholder="닉네임">
       <button class="submit" onclick="saveProfileNickname()">닉네임 저장</button>
@@ -207,7 +217,6 @@
       <h3>방명록</h3>
       <button class="board-write-btn" onclick="toggleWriteForm()">+ 글쓰기</button>
       <div class="board-write-form" id="writeForm" style="display:none">
-        <div class="post-detail-author" id="writeFormAuthor"></div>
         <input type="text" id="postTitle" placeholder="제목">
         <textarea id="postContent" placeholder="내용" rows="4"></textarea>
         <p id="postError" class="auth-error" style="display:none"></p>
@@ -233,8 +242,8 @@
     </div>
   </div>
 
-  <script src="/script.js"></script>
-  <script src="/script2.js"></script>
+  <script src="script.js"></script>
+  <script src="script2.js"></script>
   <script type="module" src="/shared-audio.js"></script>
 </body>
 

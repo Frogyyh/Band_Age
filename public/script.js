@@ -1,6 +1,46 @@
-// 트랙 클릭 = 무대에 쓸 곡으로 선택, 재생 버튼 = 미리듣기. 둘을 분리해서
-// 재생 버튼을 눌러도 선택 상태가 안 바뀌게 한다(이벤트는 각 onclick에서 stopPropagation).
 let previewAudio = null;
+
+// 로비 트랙 미리듣기 중에는 배경음을 잠깐 꺼둔다. 미리듣기를 시작하기 전
+// 배경음이 원래 켜져 있었는지(muted) 기억해뒀다가, 멈추면 그 상태로 되돌린다.
+let siteMusicMuteOverride = null;
+
+function getSiteMusicEls(){
+  return {
+    audio: document.getElementById('siteMusic'),
+    toggle: document.querySelector('.music-toggle[data-style="icon"]'),
+  };
+}
+
+function muteSiteMusicForPreview(){
+  const { audio, toggle } = getSiteMusicEls();
+  if(!audio) return;
+  if(siteMusicMuteOverride === null){
+    siteMusicMuteOverride = audio.muted;
+  }
+  audio.muted = true;
+  audio.pause();
+  if(toggle){
+    toggle.classList.add('is-muted');
+    toggle.setAttribute('aria-pressed', 'false');
+  }
+}
+
+function restoreSiteMusicAfterPreview(){
+  if(siteMusicMuteOverride === null) return;
+  const wasMuted = siteMusicMuteOverride;
+  siteMusicMuteOverride = null;
+  const { audio, toggle } = getSiteMusicEls();
+  if(!audio) return;
+  audio.muted = wasMuted;
+  if(!wasMuted){
+    audio.play().catch(() => {});
+  }
+  if(toggle){
+    toggle.classList.toggle('is-muted', wasMuted);
+    toggle.setAttribute('aria-pressed', String(!wasMuted));
+  }
+}
+
 function previewTrack(el){
   const wasPlaying = el.classList.contains('playing');
   document.querySelectorAll('.track').forEach(t=>{
@@ -11,12 +51,17 @@ function previewTrack(el){
     previewAudio.pause();
     previewAudio = null;
   }
-  if(wasPlaying) return;
+  if(wasPlaying){
+    restoreSiteMusicAfterPreview();
+    return;
+  }
 
   el.classList.add('playing');
   el.querySelector('.play-btn').textContent = '❚❚';
   const trackName = el.querySelector('.track-name').textContent.trim();
   const audioSrc = el.dataset.audioSrc;
+
+  muteSiteMusicForPreview();
 
   if(audioSrc){
     previewAudio = new Audio(audioSrc);
@@ -24,6 +69,7 @@ function previewTrack(el){
       el.classList.remove('playing');
       el.querySelector('.play-btn').textContent = '▷';
       previewAudio = null;
+      restoreSiteMusicAfterPreview();
     });
     previewAudio.play();
     showToast('▶ ' + trackName + ' 재생 중');
@@ -56,7 +102,7 @@ function setMySongFile(file){
   filenameEl.style.display = '';
   document.getElementById('mySongUploadBtn').style.display = 'none';
   document.getElementById('mySongCancelBtn').style.display = '';
-  showToast('"' + file.name + '" MY SONG에 업로드됨 (음원 분리 서버 연동 예정)');
+  showToast('"' + file.name + '" MY SONG에 업로드됨');
 }
 
 function cancelMySongUpload(){
@@ -91,6 +137,157 @@ function triggerCustomUpload(){
   document.getElementById('customFileInput').click();
 }
 
+function formatDuration(seconds){
+  if(!isFinite(seconds) || isNaN(seconds)) return '--:--';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+let pendingCustomFile = null;
+
+function openCustomTrackNameModal(file){
+  pendingCustomFile = file;
+  document.getElementById('customTrackNameInput').value = file.name.replace(/\.[^/.]+$/, '');
+  document.getElementById('customTrackNameError').style.display = 'none';
+  document.getElementById('customTrackNameOverlay').classList.add('show');
+}
+
+function closeCustomTrackNameModal(){
+  document.getElementById('customTrackNameOverlay').classList.remove('show');
+  pendingCustomFile = null;
+}
+
+function submitCustomTrackName(){
+  const name = document.getElementById('customTrackNameInput').value.trim();
+  const errorBox = document.getElementById('customTrackNameError');
+  if(!name){
+    errorBox.textContent = '트랙 이름을 입력하세요.';
+    errorBox.style.display = '';
+    return;
+  }
+  if(!pendingCustomFile) return;
+  handleSongUpload(pendingCustomFile, name);
+  document.getElementById('customTrackNameOverlay').classList.remove('show');
+  pendingCustomFile = null;
+}
+
+function readAudioDuration(file){
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
+}
+
+function renderCustomTracks(songs, containerId = 'customTrackList', scope = 'all'){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  if(scope === 'mine' && !currentUser){
+    container.innerHTML = '<div class="track-empty">로그인 후 이용할 수 있어요.</div>';
+    return;
+  }
+  if(!songs.length){
+    container.innerHTML = `<div class="track-empty">${scope === 'mine' ? '업로드한 트랙이 없어요.' : '아직 커스텀 트랙이 없어요.'}</div>`;
+    return;
+  }
+  container.innerHTML = songs.map((song) => {
+    const isOwner = currentUser && String(song.uploader) === String(currentUser.id);
+    const audioSrc = API_ORIGIN + song.fileUrl;
+    return `
+    <div class="track" onclick="selectTrack(this)" data-audio-src="${escapeHtml(audioSrc)}">
+      <span class="track-name">${escapeHtml(song.title)}</span>
+      <span class="track-uploader">${escapeHtml(song.uploaderNickname || '')}</span>
+      <span class="track-time">${formatDuration(song.duration)}</span>
+      <button class="like-btn" onclick="toggleLike(event, this)" data-likes="0">
+        <span class="like-icon">♥</span><span class="like-count">0</span>
+      </button>
+      <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
+      ${isOwner ? `<button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>` : ''}
+    </div>
+  `;
+  }).join('');
+  sortCustomListByLikes();
+}
+
+async function loadAllCustomSongs(){
+  const container = document.getElementById('customTrackList');
+  if(!container) return;
+  try{
+    const res = await fetch(API_BASE + '/songs');
+    if(!res.ok){
+      renderCustomTracks([]);
+      return;
+    }
+    renderCustomTracks(await res.json());
+  } catch(err){
+    container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
+  }
+}
+
+async function deleteSong(id){
+  if(!confirm('이 트랙을 삭제하시겠어요?')) return;
+  const token = localStorage.getItem('band_age_token');
+  try{
+    const res = await fetch(API_BASE + '/songs/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){
+      showToast(data.message || '삭제하지 못했습니다.');
+      return;
+    }
+    showToast('트랙이 삭제되었습니다.');
+    loadAllCustomSongs();
+    loadMyPageSongs();
+  } catch(err){
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
+async function handleSongUpload(file, title){
+  if(!currentUser){
+    showToast('로그인 후 업로드할 수 있어요.');
+    openModal('login');
+    return;
+  }
+  const token = localStorage.getItem('band_age_token');
+  const duration = await readAudioDuration(file);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', (title && title.trim()) || file.name.replace(/\.[^/.]+$/, ''));
+  if(duration) formData.append('duration', String(Math.round(duration)));
+
+  showToast('"' + file.name + '" 업로드 중...');
+  try{
+    const res = await fetch(API_BASE + '/songs', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json();
+    if(!res.ok){
+      showToast(data.message || '업로드에 실패했습니다.');
+      return;
+    }
+    showToast('"' + data.title + '" 업로드 완료!');
+    loadAllCustomSongs();
+    loadMyPageSongs();
+  } catch(err){
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
 function toggleVideo(){
   const box = document.getElementById('videoBox');
   box.classList.toggle('on');
@@ -108,25 +305,162 @@ function showToast(msg){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
 }
 
-/* ---------- 로딩 화면 (무대 입장) ---------- */
+/* ---------- 로딩 화면 ---------- */
 const LOADING_STEPS = [10, 34, 58, 76, 92, 100];
 const LOADING_STEP_MS = 420;
 let loadingTimers = [];
 
-function showLoading(){
+/* ---------- AI 음원 분리 연동 (Band_Age FastAPI 서버) ---------- */
+const SEPARATE_ORIGIN = 'http://localhost:8000';
+
+// POST /separate → job_id 즉시 수신 → GET /jobs/{job_id} 폴링 → done 시 { session_id, stems, model } 반환
+// 서버가 항상 htdemucs_6s(vocals/drums/bass/guitar/piano/other)만 사용하므로 모델을 따로 지정하지 않는다.
+async function requestAudioSeparation(file, onProgress){
+  const form = new FormData();
+  form.append('file', file);
+
+  const res = await fetch(SEPARATE_ORIGIN + '/separate', { method: 'POST', body: form });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.detail || '서버 오류');
+
+  const deadline = Date.now() + 600000;
+  while(Date.now() < deadline){
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const jobRes = await fetch(SEPARATE_ORIGIN + '/jobs/' + data.job_id);
+    const job = await jobRes.json();
+    if(job.status === 'done') return job;
+    if(job.status === 'failed') throw new Error(job.error || '분리 실패');
+    onProgress?.(job.status);
+  }
+  throw new Error('타임아웃: 분리 시간이 너무 깁니다 (10분 초과).');
+}
+
+/* ---------- 로딩 화면에서 선택한 원곡 미리듣기 ---------- */
+let loadingPreviewAudio = null;
+let loadingPreviewObjectUrl = null;
+
+function updateLoadingSoundToggle(){
+  const btn = document.getElementById('loadingSoundToggle');
+  if(!btn) return;
+  if(!loadingPreviewAudio){
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = '';
+  const muted = loadingPreviewAudio.paused;
+  btn.classList.toggle('is-muted', muted);
+  btn.setAttribute('aria-pressed', String(!muted));
+}
+
+function playLoadingPreview(url, isObjectUrl){
+  stopLoadingPreview();
+  const siteMusic = document.getElementById('siteMusic');
+  if(siteMusic) siteMusic.pause();
+  if(isObjectUrl) loadingPreviewObjectUrl = url;
+  loadingPreviewAudio = new Audio(url);
+  loadingPreviewAudio.loop = true;
+  updateLoadingSoundToggle();
+  // 브라우저 자동재생 정책으로 막힐 수 있으니, 실패하면 아이콘을 "꺼짐"으로 표시해
+  // 사용자가 직접 눌러서 재생할 수 있게 한다.
+  loadingPreviewAudio.play().catch(() => {}).then(updateLoadingSoundToggle);
+}
+
+function stopLoadingPreview(){
+  if(loadingPreviewAudio){
+    loadingPreviewAudio.pause();
+    loadingPreviewAudio.src = '';
+    loadingPreviewAudio = null;
+  }
+  if(loadingPreviewObjectUrl){
+    URL.revokeObjectURL(loadingPreviewObjectUrl);
+    loadingPreviewObjectUrl = null;
+  }
+  updateLoadingSoundToggle();
+  const siteMusic = document.getElementById('siteMusic');
+  if(siteMusic && !siteMusic.muted) siteMusic.play().catch(() => {});
+}
+
+const loadingSoundToggle = document.getElementById('loadingSoundToggle');
+if(loadingSoundToggle){
+  loadingSoundToggle.addEventListener('click', () => {
+    if(!loadingPreviewAudio) return;
+    if(loadingPreviewAudio.paused){
+      loadingPreviewAudio.play().catch(() => {}).then(updateLoadingSoundToggle);
+    } else {
+      loadingPreviewAudio.pause();
+    }
+    updateLoadingSoundToggle();
+  });
+}
+
+async function showLoading(){
   const screen = document.getElementById('loadingScreen');
   const fill = document.getElementById('loadingBarFill');
+  const sub = document.getElementById('loadingSub');
   clearLoadingTimers();
   fill.style.width = '0%';
   screen.classList.add('show');
   screen.setAttribute('aria-hidden', 'false');
 
-  LOADING_STEPS.forEach((pct, i) => {
-    loadingTimers.push(setTimeout(()=> { fill.style.width = pct + '%'; }, (i + 1) * LOADING_STEP_MS));
-  });
-  loadingTimers.push(setTimeout(() => {
-    window.location.href = 'stage.html';
-  }, (LOADING_STEPS.length + 1) * LOADING_STEP_MS));
+  // 커스텀 트랙을 선택한 경우, 실제 음원 URL(data-audio-src)이 있으면 그 트랙도 분리 대상이다.
+  // (데모 트랙은 data-audio-src가 없어 실제 음원이 없으므로 기존 데모 연출로만 처리)
+  const trackAudioSrc = selectedTrackEl ? selectedTrackEl.dataset.audioSrc : null;
+
+  // MY SONG 업로드도, 실제 음원이 있는 트랙 선택도 없으면 기존 데모 연출 그대로 무대로 이동
+  if(!mySongFile && !trackAudioSrc){
+    sub.textContent = '무대를 준비하는 중…';
+    LOADING_STEPS.forEach((pct, i) => {
+      loadingTimers.push(setTimeout(()=> { fill.style.width = pct + '%'; }, (i + 1) * LOADING_STEP_MS));
+    });
+    loadingTimers.push(setTimeout(() => {
+      window.location.href = 'stage.html';
+    }, (LOADING_STEPS.length + 1) * LOADING_STEP_MS));
+    return;
+  }
+
+  // MY SONG 업로드 또는 실제 음원이 있는 커스텀 트랙이면 AI 음원 분리 서버로 보내고, 완료된 stem을 무대로 전달
+  try{
+    let fileToSeparate, songName;
+    if(mySongFile){
+      songName = mySongFile.name.replace(/\.[^.]+$/, '');
+      playLoadingPreview(URL.createObjectURL(mySongFile), true);
+      fileToSeparate = mySongFile;
+    } else {
+      const trackNameEl = selectedTrackEl.querySelector('.track-name');
+      songName = trackNameEl ? trackNameEl.textContent.trim() : '트랙';
+      playLoadingPreview(trackAudioSrc, false);
+
+      sub.textContent = '음원 불러오는 중…';
+      fill.style.width = '10%';
+      const audioRes = await fetch(trackAudioSrc);
+      if(!audioRes.ok) throw new Error('트랙 음원을 불러오지 못했습니다.');
+      const blob = await audioRes.blob();
+      const ext = (trackAudioSrc.split('?')[0].match(/\.[a-zA-Z0-9]+$/) || ['.mp3'])[0];
+      fileToSeparate = new File([blob], songName + ext, { type: blob.type || 'audio/mpeg' });
+    }
+
+    sub.textContent = '음원 업로드 중…';
+    fill.style.width = '25%';
+    const job = await requestAudioSeparation(fileToSeparate, (status) => {
+      sub.textContent = status === 'processing'
+        ? 'AI가 음원을 분리하는 중… (첫 실행 시 모델 다운로드 포함 3~4분 소요)'
+        : '분리 대기열에서 대기 중…';
+      fill.style.width = '55%';
+    });
+    fill.style.width = '100%';
+    sub.textContent = '완료! 무대로 이동합니다…';
+    sessionStorage.setItem('bandage_session', JSON.stringify({
+      sessionId: job.session_id,
+      stems: job.stems,
+      model: job.model,
+      songName,
+    }));
+    loadingTimers.push(setTimeout(() => { stopLoadingPreview(); window.location.href = 'stage.html'; }, 400));
+  } catch(err){
+    stopLoadingPreview();
+    hideLoading();
+    showToast('❌ 음원 분리 실패: ' + err.message);
+  }
 }
 
 function hideLoading(){
@@ -182,14 +516,6 @@ async function submitAuth(){
 
   if(!username || !password){
     showAuthError('아이디와 비밀번호를 입력하세요.');
-    return;
-  }
-  if(username.length < 4){
-    showAuthError('아이디는 4글자 이상 입력해주세요.');
-    return;
-  }
-  if(!/[A-Za-z]/.test(username)){
-    showAuthError('아이디는 영문을 포함해야 해요.');
     return;
   }
   if(authMode === 'signup' && !nickname){
@@ -248,18 +574,8 @@ function logout(){
   window.location.href = '/';
 }
 
-function avatarHtml(user, extraClass){
-  const cls = 'avatar-circle' + (extraClass ? ' ' + extraClass : '');
-  if(user && user.avatarUrl){
-    return `<img src="${API_ORIGIN}${user.avatarUrl}" class="${cls}" alt="">`;
-  }
-  const initial = user && user.nickname ? escapeHtml(user.nickname.slice(0, 1)) : '?';
-  return `<span class="${cls} avatar-placeholder">${initial}</span>`;
-}
-
 function renderAuthArea(user){
   currentUser = user;
-  loadAllCustomSongs();
 }
 
 async function checkSession(){
@@ -321,23 +637,22 @@ async function submitNickname(){
   }
 }
 
-function renderProfileAvatarPreview(){
-  document.getElementById('profileAvatarPreview').innerHTML = avatarHtml(currentUser, 'avatar-large');
-}
-
 function openProfileModal(){
   if(!currentUser){
     showToast('로그인이 필요해요.');
     window.location.href = '/';
     return;
   }
+  document.getElementById('profileUsername').textContent = currentUser.username;
   document.getElementById('profileNickname').value = currentUser.nickname;
   document.getElementById('profileError').style.display = 'none';
-  renderProfileAvatarPreview();
   resetWithdrawSection();
   document.getElementById('profileOverlay').classList.add('show');
   loadMyPageSongs();
   loadMyPagePosts();
+}
+function closeProfileModal(){
+  document.getElementById('profileOverlay').classList.remove('show');
 }
 
 async function loadMyPageSongs(){
@@ -349,10 +664,10 @@ async function loadMyPageSongs(){
       headers: { Authorization: `Bearer ${token}` },
     });
     if(!res.ok){
-      renderCustomTracks([], 'myPageSongs');
+      renderCustomTracks([], 'myPageSongs', 'mine');
       return;
     }
-    renderCustomTracks(await res.json(), 'myPageSongs');
+    renderCustomTracks(await res.json(), 'myPageSongs', 'mine');
   } catch(err){
     container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
   }
@@ -379,9 +694,6 @@ async function loadMyPagePosts(){
   } catch(err){
     container.innerHTML = '<div class="board-row"><span class="t">불러올 수 없어요.</span></div>';
   }
-}
-function closeProfileModal(){
-  document.getElementById('profileOverlay').classList.remove('show');
 }
 
 async function saveProfileNickname(){
@@ -411,70 +723,6 @@ async function saveProfileNickname(){
   } catch(err){
     errorBox.textContent = '서버에 연결할 수 없습니다.';
     errorBox.style.display = '';
-  }
-}
-
-// 휴대폰 카메라 사진 등 큰 원본을 그대로 올리면 용량 제한에 걸리니,
-// 업로드 전에 브라우저에서 512px 정사각형 기준으로 줄이고 JPEG로 압축한다.
-function resizeImageFile(file, maxDim = 512, quality = 0.85){
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if(width > maxDim || height > maxDim){
-        if(width > height){
-          height = Math.round(height * (maxDim / width));
-          width = maxDim;
-        } else {
-          width = Math.round(width * (maxDim / height));
-          height = maxDim;
-        }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(
-        (blob) => blob ? resolve(blob) : reject(new Error('이미지를 변환하지 못했습니다.')),
-        'image/jpeg',
-        quality
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('이미지를 불러오지 못했습니다. 다른 파일을 시도해주세요.'));
-    };
-    img.src = url;
-  });
-}
-
-async function submitAvatar(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const token = localStorage.getItem('band_age_token');
-  try{
-    const resized = await resizeImageFile(file);
-    const formData = new FormData();
-    formData.append('avatar', resized, 'avatar.jpg');
-    const res = await fetch(API_BASE + '/auth/me/avatar', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    const data = await res.json();
-    if(!res.ok){
-      showToast(data.message || '사진 업로드에 실패했습니다.');
-      return;
-    }
-    renderAuthArea(data);
-    renderProfileAvatarPreview();
-    showToast('프로필 사진이 변경되었습니다.');
-  } catch(err){
-    showToast(err.message || '서버에 연결할 수 없습니다.');
-  } finally {
-    event.target.value = '';
   }
 }
 
@@ -597,29 +845,20 @@ function reorderWithHotFirst(posts){
   return [hot, ...posts];
 }
 
-function postExcerpt(content, max = 60){
-  const clean = content.replace(/\s+/g, ' ').trim();
-  return clean.length > max ? clean.slice(0, max) + '…' : clean;
-}
-
-function renderBoardRows(containerId, posts){
+function renderBoardRows(containerId, posts, offset = 0){
   const container = document.getElementById(containerId);
   if(!posts.length){
     container.innerHTML = '<div class="board-row"><span class="t">아직 게시물이 없어요.</span></div>';
     return;
   }
-  container.innerHTML = posts.map((post) => {
+  container.innerHTML = posts.map((post, i) => {
     const isOwner = currentUser && String(post.author) === String(currentUser.id);
     return `
     <div class="board-row" onclick="openPostDetail('${post._id}')">
-      <div class="board-row-top">
-        ${avatarHtml({ avatarUrl: post.authorAvatarUrl, nickname: post.authorNickname }, 'avatar-small')}
-        <span class="board-nickname">${escapeHtml(post.authorNickname)}</span>
-        <span class="board-meta">조회 ${post.views} · ${formatPostDate(post.createdAt)}</span>
-        ${isOwner ? `<button class="board-delete-btn" onclick="event.stopPropagation(); deletePost('${post._id}')" aria-label="삭제">✕</button>` : ''}
-      </div>
-      <div class="board-row-title">${post._id === hotPostId ? '<span class="hot">HOT</span>' : ''}${escapeHtml(post.title)}</div>
-      <div class="board-row-excerpt">${escapeHtml(postExcerpt(post.content))}</div>
+      <span class="idx">${String(offset + i + 1).padStart(2, '0')}</span>
+      <span class="t">${post._id === hotPostId ? '<span class="hot">HOT</span>' : ''}${escapeHtml(post.title)}</span>
+      <span class="m">조회 ${post.views} · ${formatPostDate(post.createdAt)}</span>
+      ${isOwner ? `<button class="board-delete-btn" onclick="event.stopPropagation(); deletePost('${post._id}')" aria-label="삭제">✕</button>` : ''}
     </div>
   `;
   }).join('');
@@ -662,7 +901,7 @@ function renderBoardPagination(){
 
 function renderCurrentBoardPage(){
   const start = (boardPage - 1) * POSTS_PER_PAGE;
-  renderBoardRows('boardFullList', boardPosts.slice(start, start + POSTS_PER_PAGE));
+  renderBoardRows('boardFullList', boardPosts.slice(start, start + POSTS_PER_PAGE), start);
   renderBoardPagination();
 }
 
@@ -709,14 +948,7 @@ function toggleWriteForm(){
     return;
   }
   const form = document.getElementById('writeForm');
-  const opening = form.style.display === 'none';
-  form.style.display = opening ? '' : 'none';
-  if(opening && currentUser){
-    document.getElementById('writeFormAuthor').innerHTML = `
-      ${avatarHtml(currentUser, 'avatar-small')}
-      <span class="board-nickname">${escapeHtml(currentUser.nickname)}</span>
-    `;
-  }
+  form.style.display = form.style.display === 'none' ? '' : 'none';
 }
 
 async function submitPost(){
@@ -765,10 +997,8 @@ async function openPostDetail(id){
     if(!res.ok) return;
     const post = await res.json();
     currentPostDetailId = post._id;
-
     document.getElementById('postDetailAuthor').innerHTML = `
-      ${avatarHtml({ avatarUrl: post.authorAvatarUrl, nickname: post.authorNickname }, 'avatar-small')}
-      <span class="board-nickname">${escapeHtml(post.authorNickname)}</span>
+      <span>${escapeHtml(post.authorNickname)}</span>
     `;
     document.getElementById('postDetailTitle').textContent = post.title;
     document.getElementById('postDetailMeta').textContent =
@@ -846,62 +1076,52 @@ function setupListSearch(){
   });
 }
 
-function formatDuration(seconds){
-  if(!seconds || !Number.isFinite(seconds)) return '-';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
+document.addEventListener('DOMContentLoaded', async () => {
+  const fileInput = document.getElementById('fileInput');
+  if(fileInput){
+    fileInput.addEventListener('change', (e)=>{
+      if(e.target.files.length){
+        setMySongFile(e.target.files[0]);
+      }
+    });
+  }
+  const customFileInput = document.getElementById('customFileInput');
+  if(customFileInput){
+    customFileInput.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      e.target.value = '';
+      if(!file) return;
+      if(!currentUser){
+        showToast('커스텀 트랙 업로드는 로그인 후 이용할 수 있어요.');
+        return;
+      }
+      openCustomTrackNameModal(file);
+    });
+  }
+  const isNewUser = new URLSearchParams(window.location.search).get('newUser') === '1';
+  handleAuthRedirect();
+  const user = await checkSession();
+  if(!user){
+    window.location.href = '/';
+    return;
+  }
+  if(isNewUser){
+    openNicknameModal(user.nickname);
+  }
+  await refreshHotPost();
+  loadBoardPreview();
+  loadAllCustomSongs();
 
-function readAudioDuration(file){
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const audio = new Audio();
-    audio.preload = 'metadata';
-    audio.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
-    };
-    audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    audio.src = url;
+  updateListCounts();
+  setupListSearch();
+  sortDemoListByName();
+  document.querySelectorAll('.track-scroll').forEach((trackScroll) => {
+    new MutationObserver(updateListCounts).observe(trackScroll, { childList: true });
   });
-}
-
-function renderCustomTracks(songs, containerId = 'customTrackList', scope = 'all'){
-  const container = document.getElementById(containerId);
-  if(!container) return;
-  if(scope === 'mine' && !currentUser){
-    container.innerHTML = '<div class="track-empty">로그인 후 이용할 수 있어요.</div>';
-    return;
-  }
-  if(!songs.length){
-    container.innerHTML = `<div class="track-empty">${scope === 'mine' ? '업로드한 트랙이 없어요.' : '아직 커스텀 트랙이 없어요.'}</div>`;
-    return;
-  }
-  container.innerHTML = songs.map((song) => {
-    const isOwner = currentUser && String(song.uploader) === String(currentUser.id);
-    const audioSrc = API_ORIGIN + song.fileUrl;
-    return `
-    <div class="track" onclick="selectTrack(this)" data-audio-src="${escapeHtml(audioSrc)}">
-      <span class="track-name">${escapeHtml(song.title)}</span>
-      <span class="track-uploader">${escapeHtml(song.uploaderNickname || '')}</span>
-      <span class="track-time">${formatDuration(song.duration)}</span>
-      <button class="like-btn" onclick="toggleLike(event, this)" data-likes="0">
-        <span class="like-icon">♥</span><span class="like-count">0</span>
-      </button>
-      <button class="play-btn" onclick="event.stopPropagation(); previewTrack(this.parentElement)">▷</button>
-      ${isOwner ? `<button class="track-delete-btn" onclick="event.stopPropagation(); deleteSong('${song._id}')" aria-label="삭제">✕</button>` : ''}
-    </div>
-  `;
-  }).join('');
-  sortCustomListByLikes();
-}
+});
 
 // TODO(백엔드 연동 시): 여기서 좋아요 상태/개수를 서버(GET으로 초기 상태 불러오기,
-// POST /api/songs/:id/like 같은 걸로 토글)에 반영하도록 바꾸면 된다.
+// POST /api/likes/:trackId 같은 걸로 토글)에 반영하도록 바꾸면 된다.
 // 지금은 로그인 여부만 체크하고, 좋아요 상태는 이 브라우저 세션에서만 유지된다(새로고침 시 초기화).
 function toggleLike(event, btn){
   event.stopPropagation();
@@ -941,117 +1161,4 @@ function sortCustomListByLikes(){
     return likesB - likesA;
   });
   tracks.forEach((track) => container.appendChild(track));
-}
-
-// 메인 화면 "사용자의 커스텀"은 전체 사용자의 업로드 곡을 보여준다 (마이페이지의 "내가 커스텀한 곡"과는 다름).
-async function loadAllCustomSongs(){
-  const container = document.getElementById('customTrackList');
-  if(!container) return;
-  try{
-    const res = await fetch(API_BASE + '/songs');
-    if(!res.ok){
-      renderCustomTracks([], 'customTrackList', 'all');
-      return;
-    }
-    renderCustomTracks(await res.json(), 'customTrackList', 'all');
-  } catch(err){
-    container.innerHTML = '<div class="track-empty">불러올 수 없어요.</div>';
-  }
-}
-
-async function deleteSong(id){
-  if(!confirm('이 트랙을 삭제하시겠어요?')) return;
-  const token = localStorage.getItem('band_age_token');
-  try{
-    const res = await fetch(API_BASE + '/songs/' + id, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if(!res.ok){
-      showToast(data.message || '삭제하지 못했습니다.');
-      return;
-    }
-    showToast('트랙이 삭제되었습니다.');
-    loadAllCustomSongs();
-    loadMyPageSongs();
-  } catch(err){
-    showToast('서버에 연결할 수 없습니다.');
-  }
-}
-
-async function handleSongUpload(file){
-  if(!currentUser){
-    showToast('로그인 후 업로드할 수 있어요.');
-    openModal('login');
-    return;
-  }
-  const token = localStorage.getItem('band_age_token');
-  const duration = await readAudioDuration(file);
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
-  if(duration) formData.append('duration', String(Math.round(duration)));
-
-  showToast('"' + file.name + '" 업로드 중...');
-  try{
-    const res = await fetch(API_BASE + '/songs', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    const data = await res.json();
-    if(!res.ok){
-      showToast(data.message || '업로드에 실패했습니다.');
-      return;
-    }
-    showToast('"' + data.title + '" 업로드 완료!');
-    loadAllCustomSongs();
-    loadMyPageSongs();
-  } catch(err){
-    showToast('서버에 연결할 수 없습니다.');
-  }
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-  // MY SONG: 무대 시작 시 쓸 원본 파일을 로컬에만 들고 있는다 (음원 분리 서버 연동 전까지는
-  // 커스텀 트랙 목록에 올리지 않음). 실제로 DB에 저장/공유되는 업로드는 customFileInput 쪽.
-  const fileInput = document.getElementById('fileInput');
-  if(fileInput){
-    fileInput.addEventListener('change', (e)=>{
-      if(e.target.files.length){
-        setMySongFile(e.target.files[0]);
-      }
-    });
-  }
-  const customFileInput = document.getElementById('customFileInput');
-  if(customFileInput){
-    customFileInput.addEventListener('change', (e)=>{
-      if(e.target.files.length){
-        handleSongUpload(e.target.files[0]);
-      }
-      e.target.value = '';
-    });
-  }
-  const isNewUser = new URLSearchParams(window.location.search).get('newUser') === '1';
-  handleAuthRedirect();
-  const user = await checkSession();
-  if(isNewUser && user){
-    openNicknameModal(user.nickname);
-  }
-  await refreshHotPost();
-  loadBoardPreview();
-  loadAllCustomSongs();
-
-  updateListCounts();
-  setupListSearch();
-  sortDemoListByName();
-  document.querySelectorAll('.track-scroll').forEach((trackScroll) => {
-    new MutationObserver(updateListCounts).observe(trackScroll, { childList: true });
-  });
-});
-
-function toggleFav(event, btn){
-  event.stopPropagation();
-  btn.classList.toggle('faved');
 }

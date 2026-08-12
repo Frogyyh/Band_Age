@@ -8,10 +8,30 @@ body { background: #030405; }
 #scene.free-camera { cursor: crosshair; }
 canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-#maskControls {
+#lobbyButton {
   position: fixed;
   z-index: 10;
   top: 24px;
+  left: 24px;
+  padding: 12px 16px;
+  border: 1px solid rgba(167, 255, 91, 0.7);
+  border-radius: 999px;
+  background: rgba(4, 10, 5, 0.72);
+  color: #b8ff79;
+  font: 700 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  transition: background 160ms ease, color 160ms ease;
+}
+#lobbyButton:hover { background: rgba(42, 83, 27, 0.8); }
+#lobbyButton:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+#maskControls {
+  position: fixed;
+  z-index: 10;
+  top: 80px;
   left: 24px;
   right: 24px;
   display: flex;
@@ -40,12 +60,102 @@ canvas { display: block; width: 100%; height: 100%; outline: none; }
 }
 .mask-button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
-#artistPanel { position: fixed; z-index: 12; top: 22px; right: 22px; bottom: 22px; width: min(340px, calc(100vw - 44px)); padding: 28px; border: 1px solid rgba(183,224,243,.25); background: rgba(4,9,12,.88); color: #eaf6fb; backdrop-filter: blur(18px); transform: translateX(calc(100% + 32px)); opacity: 0; visibility: hidden; transition: transform .42s cubic-bezier(.2,.8,.2,1), opacity .3s, visibility .42s; pointer-events: none; }
+#artistPanel {
+  /* top을 88px부터 시작해 우상단의 #publishButton(추출하기, top:24px) 영역과 겹치지 않게 한다 —
+     겹치면 패널이 열려 있는 동안 추출 버튼이 클릭되지 않는다. */
+  position: fixed; z-index: 12; top: 88px; right: 22px; bottom: 22px;
+  width: min(340px, calc(100vw - 44px)); padding: 28px;
+  border: 1px solid rgba(183,224,243,.25); background: rgba(4,9,12,.88);
+  color: #eaf6fb; backdrop-filter: blur(18px);
+  display: flex; flex-direction: column;
+  transform: translateX(calc(100% + 32px)); opacity: 0; visibility: hidden;
+  transition: transform .42s cubic-bezier(.2,.8,.2,1), opacity .3s, visibility .42s;
+  pointer-events: none;
+}
 #artistPanel.is-open { transform: translateX(0); opacity: 1; visibility: visible; pointer-events: auto; }
-#artistPanel > span { color: #81b8cf; font: 600 9px/1 system-ui,sans-serif; letter-spacing: .2em; }
-#artistPanel h1 { margin: 16px 0 8px; font: 700 clamp(32px,5vw,58px)/.9 system-ui,sans-serif; letter-spacing: -.055em; }
-#artistPanel p { margin: 0; color: #6f858f; font: 500 9px/1 system-ui,sans-serif; letter-spacing: .14em; }
-#artistMotionButton { margin-top: 36px; width: 100%; padding: 13px; border: 1px solid #334a55; background: rgba(15,28,34,.72); color: #b9dce9; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .14em; cursor: pointer; }
+#artistPanel > span { flex-shrink: 0; color: #81b8cf; font: 600 9px/1 system-ui,sans-serif; letter-spacing: .2em; }
+#artistPanel h1 { flex-shrink: 0; margin: 16px 0 8px; font: 700 clamp(32px,5vw,58px)/.9 system-ui,sans-serif; letter-spacing: -.055em; }
+#artistPanel p { flex-shrink: 0; margin: 0; color: #6f858f; font: 500 9px/1 system-ui,sans-serif; letter-spacing: .14em; }
+#artistMotionButton { flex-shrink: 0; margin-top: 14px; width: 100%; padding: 13px; border: 1px solid #334a55; background: rgba(15,28,34,.72); color: #b9dce9; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .14em; cursor: pointer; }
 #artistMotionButton:hover { background: #193441; }
-#artistExitButton { position: absolute; left: 28px; bottom: 28px; padding: 12px 18px; border: 1px solid #6d7e85; background: transparent; color: #fff; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .16em; cursor: pointer; }
+#artistPanelActions { flex-shrink: 0; display: flex; gap: 10px; margin-top: 10px; }
+#artistSaveButton { flex: 1; padding: 12px 14px; border: 1px solid #a7ff5b; background: rgba(167,255,91,.1); color: #b8ff79; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .12em; cursor: pointer; }
+#artistSaveButton:hover { background: #a7ff5b; color: #102008; }
+#artistExitButton { flex: 1; padding: 12px 14px; border: 1px solid #6d7e85; background: transparent; color: #fff; font: 700 10px/1 system-ui,sans-serif; letter-spacing: .12em; cursor: pointer; }
 #artistExitButton:hover { border-color: #fff; background: #fff; color: #071015; }
+
+/* ── 믹싱 컨트롤 (SELECTED ARTIST 패널 내부, 스크롤 영역) ── */
+#mixPanel { flex: 1; min-height: 0; overflow-y: auto; margin-top: 20px; padding-right: 4px; display: none; }
+#mixPanel.is-visible { display: block; }
+#mixPanel::-webkit-scrollbar { width: 4px; }
+#mixPanel::-webkit-scrollbar-thumb { background: rgba(183,224,243,.25); border-radius: 2px; }
+#mixPanel .mix-row { margin-bottom: 16px; }
+#mixPanel .mix-row-label {
+  display: flex; justify-content: space-between;
+  font: 600 9px/1 system-ui,sans-serif; letter-spacing: .1em; color: #6f858f; margin-bottom: 8px;
+}
+#mixPanel .mix-row-label span { color: #eaf6fb; }
+#mixPanel input[type="range"] {
+  width: 100%; height: 3px; cursor: pointer;
+  background: rgba(183,224,243,.18); border-radius: 2px; accent-color: #a7ff5b;
+}
+#mixPanel .mix-section-label {
+  font: 700 9px/1 system-ui,sans-serif; letter-spacing: .18em; color: #40565f;
+  border-top: 1px solid rgba(183,224,243,.15); padding-top: 12px; margin: 18px 0 12px;
+}
+
+#audioBar {
+  position: fixed; z-index: 11; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 10px;
+  width: min(520px, calc(100vw - 44px));
+  padding: 14px 20px; border: 1px solid rgba(183,224,243,.25);
+  background: rgba(4,9,12,.82); color: #eaf6fb; backdrop-filter: blur(14px);
+  opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s;
+}
+#audioBar.is-visible { opacity: 1; visibility: visible; }
+#audioBarTop { display: flex; align-items: center; gap: 10px; }
+#audioPlayButton {
+  padding: 10px 18px; border: 1px solid #a7ff5b; border-radius: 999px;
+  background: rgba(167,255,91,.1); color: #b8ff79;
+  font: 700 11px/1 system-ui,sans-serif; letter-spacing: .1em; cursor: pointer;
+  flex-shrink: 0;
+}
+#audioPlayButton:hover { background: #a7ff5b; color: #102008; }
+#audioResetButton {
+  padding: 10px 14px; border: 1px solid rgba(183,224,243,.35); border-radius: 999px;
+  background: rgba(15,28,34,.6); color: #9cc3d4;
+  font: 700 10px/1 system-ui,sans-serif; letter-spacing: .06em; cursor: pointer;
+  flex-shrink: 0;
+}
+#audioResetButton:hover { border-color: #eaf6fb; color: #eaf6fb; }
+#audioStatus { font: 500 10px/1.4 system-ui,sans-serif; letter-spacing: .04em; color: #9cc3d4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#audioProgressWrap {
+  position: relative; height: 4px; border-radius: 2px;
+  background: rgba(183,224,243,.18); cursor: pointer;
+}
+#audioProgressFill { height: 100%; width: 0%; border-radius: 2px; background: #a7ff5b; pointer-events: none; }
+#audioTime { font: 600 9px/1 system-ui,sans-serif; letter-spacing: .06em; color: #6f858f; text-align: right; }
+
+#songTitle {
+  position: fixed; z-index: 11; left: 24px; bottom: 24px;
+  padding: 10px 16px; border: 1px solid rgba(183,224,243,.25); border-radius: 8px;
+  background: rgba(4,9,12,.82); color: #eaf6fb; backdrop-filter: blur(14px);
+  font: 700 11px/1 system-ui,sans-serif; letter-spacing: .04em; max-width: min(30vw, 280px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s;
+}
+#songTitle.is-visible { opacity: 1; visibility: visible; }
+#songTitle::before { content: '♪ '; color: #a7ff5b; }
+
+#publishButton {
+  position: fixed; z-index: 11; top: 24px; right: 24px;
+  padding: 11px 18px; border: 1px solid #a7ff5b; border-radius: 999px;
+  background: rgba(167,255,91,.1); color: #b8ff79;
+  font: 700 11px/1 system-ui,sans-serif; letter-spacing: .08em; cursor: pointer;
+  backdrop-filter: blur(10px);
+  opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s, background .16s, color .16s;
+}
+#publishButton.is-visible { opacity: 1; visibility: visible; }
+#publishButton:hover { background: #a7ff5b; color: #102008; }
+#publishButton:disabled { opacity: .5; cursor: not-allowed; }

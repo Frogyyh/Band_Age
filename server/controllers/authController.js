@@ -3,7 +3,6 @@ import User from '../models/User.js';
 import Post from '../models/Post.js';
 import { generateToken } from '../utils/generateToken.js';
 import { refreshKakaoAccessToken, sendKakaoMemoToSelf } from '../config/kakao.js';
-import { deleteUploadedFile } from '../config/upload.js';
 
 function toPublicUser(user) {
   return {
@@ -11,7 +10,6 @@ function toPublicUser(user) {
     username: user.username,
     nickname: user.nickname,
     provider: user.provider,
-    avatarUrl: user.avatarUrl || null,
   };
 }
 
@@ -111,22 +109,6 @@ export async function updateNickname(req, res, next) {
   }
 }
 
-export async function updateAvatar(req, res, next) {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: '이미지 파일을 첨부하세요.' });
-    }
-
-    deleteUploadedFile(req.user.avatarUrl);
-    req.user.avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    await req.user.save();
-
-    res.json(toPublicUser(req.user));
-  } catch (err) {
-    next(err);
-  }
-}
-
 // 로그인 당시 저장해둔 카카오 토큰으로 "나에게 보내기" 알림을 보낸다.
 // 실패해도 탈퇴 자체를 막을 이유는 없으니 호출부에서 별도로 감싸서 무시한다.
 async function sendKakaoWithdrawalNotice(userId, nickname) {
@@ -173,7 +155,6 @@ export async function deleteAccount(req, res, next) {
       }
     }
 
-    deleteUploadedFile(req.user.avatarUrl);
     // 작성한 게시물은 남기되(게시판 기록 보존), 이 계정으로는 더 이상 로그인할 수 없게 한다.
     await Post.updateMany(
       { author: req.user._id },

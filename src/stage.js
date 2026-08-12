@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { BandAgeAudio } from './band-age-audio.js';
 import './stage.css';
 
 const container = document.querySelector('#scene');
@@ -9,7 +10,212 @@ const maskButtons = [...document.querySelectorAll('.mask-button')];
 const artistPanel = document.querySelector('#artistPanel');
 const artistName = document.querySelector('#artistName');
 const artistMotionButton = document.querySelector('#artistMotionButton');
+const artistSaveButton = document.querySelector('#artistSaveButton');
 const artistExitButton = document.querySelector('#artistExitButton');
+const mixPanel = document.querySelector('#mixPanel');
+const mixVolSlider = document.querySelector('#mixVolSlider');
+const mixVolVal = document.querySelector('#mixVolVal');
+const mixPitchSlider = document.querySelector('#mixPitchSlider');
+const mixPitchVal = document.querySelector('#mixPitchVal');
+const mixSpeedSlider = document.querySelector('#mixSpeedSlider');
+const mixSpeedVal = document.querySelector('#mixSpeedVal');
+const mixPanSlider = document.querySelector('#mixPanSlider');
+const mixPanVal = document.querySelector('#mixPanVal');
+const mixEqLowSlider = document.querySelector('#mixEqLowSlider');
+const mixEqLowVal = document.querySelector('#mixEqLowVal');
+const mixEqMidSlider = document.querySelector('#mixEqMidSlider');
+const mixEqMidVal = document.querySelector('#mixEqMidVal');
+const mixEqHighSlider = document.querySelector('#mixEqHighSlider');
+const mixEqHighVal = document.querySelector('#mixEqHighVal');
+const mixReverbSlider = document.querySelector('#mixReverbSlider');
+const mixReverbVal = document.querySelector('#mixReverbVal');
+const audioBar = document.querySelector('#audioBar');
+const audioPlayButton = document.querySelector('#audioPlayButton');
+const audioResetButton = document.querySelector('#audioResetButton');
+const audioStatus = document.querySelector('#audioStatus');
+const audioProgressWrap = document.querySelector('#audioProgressWrap');
+const audioProgressFill = document.querySelector('#audioProgressFill');
+const audioTime = document.querySelector('#audioTime');
+const songTitle = document.querySelector('#songTitle');
+const publishButton = document.querySelector('#publishButton');
+
+// ── AI 음원 분리 결과(MY SONG) 연동 ─────────────────────────────
+// 로비(lobby.html)에서 업로드 → 분리 완료 후 sessionStorage에 저장해 둔 stem 정보를 이어받는다.
+const SEPARATE_ORIGIN = 'http://localhost:8000';
+const API_BASE = 'http://localhost:4000/api';
+const STEM_TO_PERFORMER = { vocals: 'Singer', drums: 'Drum', bass: 'Bass', guitar: 'Guitar', piano: 'Piano', other: 'DJ' };
+const bandAudio = new BandAgeAudio(SEPARATE_ORIGIN);
+let bandAudioReady = false;
+
+function fmtTime(s) {
+  s = Math.max(0, s || 0);
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+}
+
+async function initBandAgeAudio() {
+  const raw = sessionStorage.getItem('bandage_session');
+  if (!raw) return;
+  sessionStorage.removeItem('bandage_session'); // 새로고침 시 같은 세션을 다시 로드하려다 실패하지 않도록 1회성으로 소비
+  let saved;
+  try { saved = JSON.parse(raw); } catch (_) { return; }
+  if (!saved?.stems) return;
+
+  try {
+    audioStatus.textContent = 'MY SONG 불러오는 중…';
+    audioBar.classList.add('is-visible');
+    await bandAudio.loadStems(saved.stems, saved.sessionId);
+    bandAudioReady = true;
+    audioStatus.textContent = 'MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다';
+    audioTime.textContent = `0:00 / ${fmtTime(bandAudio.duration)}`;
+
+    if (saved.songName) {
+      songTitle.textContent = saved.songName;
+      songTitle.classList.add('is-visible');
+    }
+    publishButton.classList.add('is-visible');
+  } catch (error) {
+    console.error('[Band Age] Failed to load separated stems:', error);
+    audioStatus.textContent = '음원을 불러오지 못했습니다.';
+  }
+}
+initBandAgeAudio();
+
+audioPlayButton.addEventListener('click', () => {
+  if (!bandAudioReady) return;
+  if (bandAudio.isPlaying) {
+    bandAudio.pause();
+    audioPlayButton.textContent = '▶ PLAY';
+  } else {
+    // 처음 재생 시 아직 아무 파트도 솔로 선택 안 했다면 전체 합주로 시작한다.
+    if (bandAudio.activeStems.length === 0) bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, true));
+    bandAudio.play();
+    audioPlayButton.textContent = '❚❚ PAUSE';
+  }
+});
+
+// ── 진행바(탐색) ────────────────────────────────────────────────
+bandAudio.addEventListener('timeupdate', ({ detail }) => {
+  const ratio = detail.duration ? Math.min(detail.currentTime / detail.duration, 1) : 0;
+  audioProgressFill.style.width = `${ratio * 100}%`;
+  audioTime.textContent = `${fmtTime(detail.currentTime)} / ${fmtTime(detail.duration)}`;
+});
+bandAudio.addEventListener('stop', () => {
+  audioProgressFill.style.width = '0%';
+  audioTime.textContent = `0:00 / ${fmtTime(bandAudio.duration)}`;
+  audioPlayButton.textContent = '▶ PLAY';
+});
+audioProgressWrap.addEventListener('click', (event) => {
+  if (!bandAudioReady || !bandAudio.duration) return;
+  const rect = audioProgressWrap.getBoundingClientRect();
+  const ratio = (event.clientX - rect.left) / rect.width;
+  bandAudio.seekTo(ratio * bandAudio.duration);
+  audioProgressFill.style.width = `${Math.min(Math.max(ratio, 0), 1) * 100}%`;
+});
+
+// ── 되돌리기: 믹스/이펙트를 원본으로 복구 + 솔로 해제(전체 합주) ──
+audioResetButton.addEventListener('click', () => {
+  if (!bandAudioReady) return;
+  bandAudio.resetAll();
+  audioStatus.textContent = 'MY SONG — 악기를 클릭하면 해당 파트만 솔로로 들립니다';
+});
+
+// 방금 렌더링한 wav Blob의 재생 시간(초)을 읽는다. 곡 목록에 표시할 재생시간용.
+function readBlobDuration(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
+}
+
+// 믹스다운한 곡을 "사용자의 커스텀"(전체 공개 목록)에 실제로 업로드한다.
+// 본인 소유로 저장되므로 마이페이지의 "내가 커스텀한 곡"에도 같이 뜬다.
+async function uploadMixdownToLibrary(blob, title) {
+  try {
+    const duration = await readBlobDuration(blob);
+    const formData = new FormData();
+    formData.append('file', blob, `${title}.wav`);
+    formData.append('title', title);
+    if (duration) formData.append('duration', String(Math.round(duration)));
+
+    const res = await fetch(`${API_BASE}/songs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${localStorage.getItem('band_age_token')}` },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      audioStatus.textContent = data.message || '커스텀 곡 저장에 실패했습니다.';
+      return;
+    }
+    audioStatus.textContent = '"사용자의 커스텀"에 저장됐어요!';
+  } catch (error) {
+    console.error('[Band Age] Failed to upload mixdown:', error);
+    audioStatus.textContent = '커스텀 곡 저장 중 서버에 연결하지 못했습니다.';
+  }
+}
+
+// 렌더링된 믹스다운 blob을 로컬 파일로 저장한다. 업로드와는 서로 영향을 주지 않는 별개 동작.
+function downloadMixdownLocally(blob, title) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title}.wav`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ── 나의 음악 게시하기: 현재 솔로/믹스 상태를 wav로 믹다운해서, 로컬 다운로드와
+// 커스텀 목록 업로드를 서로 기다리지 않고 각자 독립적으로 진행한다. ──
+publishButton.addEventListener('click', async () => {
+  if (!bandAudioReady || publishButton.disabled) return;
+
+  const title = (prompt('저장할 곡 제목을 입력하세요.', songTitle.textContent || 'bandage-mix') || '').trim();
+  if (!title) return; // 취소했거나 빈 값이면 추출하지 않는다.
+
+  const originalLabel = publishButton.textContent;
+  publishButton.disabled = true;
+  publishButton.textContent = '믹스다운 중…';
+  try {
+    const blob = await bandAudio.renderMixdown();
+    if (!blob) {
+      audioStatus.textContent = '들리는 파트가 없어 다운로드할 수 없습니다.';
+      return;
+    }
+
+    publishButton.textContent = '다운로드 + 커스텀 목록 저장 중…';
+    try {
+      downloadMixdownLocally(blob, title);
+    } catch (error) {
+      console.error('[Band Age] Local download failed:', error);
+    }
+    uploadMixdownToLibrary(blob, title).catch((error) => {
+      console.error('[Band Age] Failed to upload mixdown:', error);
+    });
+  } catch (error) {
+    console.error('[Band Age] Failed to render mixdown:', error);
+    audioStatus.textContent = '믹스다운에 실패했습니다.';
+  } finally {
+    publishButton.disabled = false;
+    publishButton.textContent = originalLabel;
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (bandAudioReady) bandAudio.dispose();
+});
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020405);
 scene.fog = new THREE.FogExp2(0x020405, 0.014);
@@ -646,7 +852,136 @@ function focusArtist(name) {
   artistMotionButton.textContent = animationsPaused ? 'PLAY MOTION' : 'PAUSE MOTION';
   artistPanel.classList.add('is-open');
   artistPanel.setAttribute('aria-hidden', 'false');
+  soloStemForPerformer(name);
+  openMixPanel(name);
 }
+
+function stemNameForPerformer(performerName) {
+  return Object.entries(STEM_TO_PERFORMER).find(([, performer]) => performer === performerName)?.[0];
+}
+
+// 공연자를 클릭해 포커스하면 해당 파트만 솔로로 들리게 하고, 나머지 파트는 음소거한다.
+function soloStemForPerformer(performerName) {
+  if (!bandAudioReady) return;
+  const stemName = stemNameForPerformer(performerName);
+  if (!stemName || !bandAudio.stems.includes(stemName)) return;
+  bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, name === stemName));
+  if (!bandAudio.isPlaying) {
+    bandAudio.play();
+    audioPlayButton.textContent = '❚❚ PAUSE';
+  }
+}
+
+// ── 파트별 믹싱 패널 (SELECTED ARTIST 패널 안에서 열림) ──────────
+let mixTargetStem = null;
+let mixSnapshot = null; // 패널을 열었을 때의 설정값 — EXIT 시 여기로 되돌린다.
+
+function fmtPitch(st) { return st === 0 ? '0 st' : `${st > 0 ? '+' : ''}${st} st`; }
+function fmtPan(v) {
+  if (Math.abs(v) < 0.01) return 'C';
+  const pct = Math.round(Math.abs(v) * 100);
+  return v < 0 ? `L ${pct}` : `R ${pct}`;
+}
+function fmtDb(v) { return v === 0 ? '0 dB' : `${v > 0 ? '+' : ''}${Number(v).toFixed(1)} dB`; }
+
+function applyStemSettings(stemName, settings) {
+  bandAudio.setVolume(stemName, settings.volume);
+  bandAudio.setPitch(stemName, settings.pitch);
+  bandAudio.setSpeed(stemName, settings.speed);
+  bandAudio.setPan(stemName, settings.pan);
+  bandAudio.setEQ(stemName, 'low', settings.eq.low);
+  bandAudio.setEQ(stemName, 'mid', settings.eq.mid);
+  bandAudio.setEQ(stemName, 'high', settings.eq.high);
+  bandAudio.setReverb(stemName, settings.reverb);
+}
+
+function renderMixSliders(settings) {
+  mixVolSlider.value = Math.round(settings.volume * 100);
+  mixPitchSlider.value = settings.pitch;
+  mixSpeedSlider.value = Math.round(settings.speed * 100);
+  mixPanSlider.value = Math.round(settings.pan * 100);
+  mixEqLowSlider.value = settings.eq.low;
+  mixEqMidSlider.value = settings.eq.mid;
+  mixEqHighSlider.value = settings.eq.high;
+  mixReverbSlider.value = Math.round(settings.reverb * 100);
+
+  mixVolVal.textContent = `${mixVolSlider.value}%`;
+  mixPitchVal.textContent = fmtPitch(settings.pitch);
+  mixSpeedVal.textContent = `${settings.speed.toFixed(2)}×`;
+  mixPanVal.textContent = fmtPan(settings.pan);
+  mixEqLowVal.textContent = fmtDb(settings.eq.low);
+  mixEqMidVal.textContent = fmtDb(settings.eq.mid);
+  mixEqHighVal.textContent = fmtDb(settings.eq.high);
+  mixReverbVal.textContent = `${mixReverbSlider.value}%`;
+}
+
+function openMixPanel(performerName) {
+  const stemName = stemNameForPerformer(performerName);
+  if (!bandAudioReady || !stemName || !bandAudio.stems.includes(stemName)) {
+    mixTargetStem = null;
+    mixSnapshot = null;
+    mixPanel.classList.remove('is-visible');
+    return;
+  }
+  mixTargetStem = stemName;
+  const current = bandAudio.getStemSettings(stemName);
+  mixSnapshot = { ...current, eq: { ...current.eq } };
+  renderMixSliders(current);
+  mixPanel.classList.add('is-visible');
+}
+
+function closeMixPanel() {
+  mixTargetStem = null;
+  mixSnapshot = null;
+  mixPanel.classList.remove('is-visible');
+}
+
+mixVolSlider.addEventListener('input', () => {
+  if (!mixTargetStem) return;
+  const v = mixVolSlider.value / 100;
+  bandAudio.setVolume(mixTargetStem, v);
+  mixVolVal.textContent = `${mixVolSlider.value}%`;
+});
+mixPitchSlider.addEventListener('input', () => {
+  if (!mixTargetStem) return;
+  const st = parseInt(mixPitchSlider.value, 10);
+  bandAudio.setPitch(mixTargetStem, st);
+  mixPitchVal.textContent = fmtPitch(st);
+});
+mixSpeedSlider.addEventListener('input', () => {
+  if (!mixTargetStem) return;
+  const sp = mixSpeedSlider.value / 100;
+  bandAudio.setSpeed(mixTargetStem, sp);
+  mixSpeedVal.textContent = `${sp.toFixed(2)}×`;
+});
+mixPanSlider.addEventListener('input', () => {
+  if (!mixTargetStem) return;
+  const pan = mixPanSlider.value / 100;
+  bandAudio.setPan(mixTargetStem, pan);
+  mixPanVal.textContent = fmtPan(pan);
+});
+function makeMixEqHandler(slider, valEl, band) {
+  slider.addEventListener('input', () => {
+    if (!mixTargetStem) return;
+    const db = parseFloat(slider.value);
+    bandAudio.setEQ(mixTargetStem, band, db);
+    valEl.textContent = fmtDb(db);
+  });
+}
+makeMixEqHandler(mixEqLowSlider, mixEqLowVal, 'low');
+makeMixEqHandler(mixEqMidSlider, mixEqMidVal, 'mid');
+makeMixEqHandler(mixEqHighSlider, mixEqHighVal, 'high');
+mixReverbSlider.addEventListener('input', () => {
+  if (!mixTargetStem) return;
+  const mix = mixReverbSlider.value / 100;
+  bandAudio.setReverb(mixTargetStem, mix);
+  mixReverbVal.textContent = `${mixReverbSlider.value}%`;
+});
+
+// 저장: 지금 슬라이더 값을 그대로 확정하고 패널을 닫는다.
+artistSaveButton.addEventListener('click', () => {
+  exitArtistFocus();
+});
 
 function exitArtistFocus() {
   if (!focusedArtist) return;
@@ -655,12 +990,20 @@ function exitArtistFocus() {
   artistPanel.classList.remove('is-open');
   artistPanel.setAttribute('aria-hidden', 'true');
   updateSelectedLighting(null);
+  if (bandAudioReady) bandAudio.stems.forEach((name) => bandAudio.setStemActive(name, true));
+  closeMixPanel();
   beginCameraTransition(homeCameraPosition, homeOrbitTarget, () => {
     if (!focusedArtist && returningArtist) {
       orbit.enabled = true;
       orbit.update();
     }
   });
+}
+
+// 나가기: 패널을 열었을 때 상태로 되돌린 뒤 닫는다(=변경사항 취소).
+function revertAndExitArtistFocus() {
+  if (mixTargetStem && mixSnapshot) applyStemSettings(mixTargetStem, mixSnapshot);
+  exitArtistFocus();
 }
 
 function updateCameraTransition(now) {
@@ -694,7 +1037,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   container.classList.toggle('can-select', Boolean(findPerformerAt(event.clientX, event.clientY)));
 });
 
-artistExitButton.addEventListener('click', exitArtistFocus);
+artistExitButton.addEventListener('click', revertAndExitArtistFocus);
 artistMotionButton.addEventListener('click', () => {
   toggleAllAnimations();
   artistMotionButton.textContent = animationsPaused ? 'PLAY MOTION' : 'PAUSE MOTION';

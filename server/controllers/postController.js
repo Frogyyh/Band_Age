@@ -31,7 +31,6 @@ export async function createPost(req, res, next) {
       content: content.trim(),
       author: req.user._id,
       authorNickname: req.user.nickname,
-      authorAvatarUrl: req.user.avatarUrl || null,
     });
     res.status(201).json(post);
   } catch (err) {
