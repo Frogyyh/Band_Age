@@ -1166,7 +1166,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   updateListCounts();
   setupListSearch();
-  sortDemoListByName();
   document.querySelectorAll('.track-scroll').forEach((trackScroll) => {
     new MutationObserver(updateListCounts).observe(trackScroll, { childList: true });
   });
@@ -1189,18 +1188,6 @@ function toggleLike(event, btn){
   btn.classList.toggle('liked', !liked);
   btn.querySelector('.like-count').textContent = likes;
   sortCustomListByLikes();
-}
-
-function sortDemoListByName(){
-  const container = document.querySelector('.list-section[data-list="demo"] .track-scroll');
-  if(!container) return;
-  const tracks = Array.from(container.querySelectorAll('.track'));
-  tracks.sort((a, b) => {
-    const nameA = a.querySelector('.track-name')?.textContent.trim() || '';
-    const nameB = b.querySelector('.track-name')?.textContent.trim() || '';
-    return nameA.localeCompare(nameB, 'ko');
-  });
-  tracks.forEach((track) => container.appendChild(track));
 }
 
 function sortCustomListByLikes(){
