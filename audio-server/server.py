@@ -65,7 +65,9 @@ MODEL = "htdemucs_6s"
 MODEL_STEMS = ["vocals", "drums", "bass", "guitar", "piano", "other"]
 
 MAX_FILE_MB       = 100          # 업로드 파일 크기 제한
-MAX_CONCURRENT    = 2            # 동시 Demucs 작업 수 제한
+# 작업마다 별도 프로세스로 Demucs 모델을 새로 로드하며 1.5GB 안팎을 쓰므로,
+# 2GB RAM 서버에서는 동시 2개만 돌아도 메모리가 바닥나 서버 전체가 먹통이 될 수 있다 (2026-08-12 실제 장애).
+MAX_CONCURRENT    = 1            # 동시 Demucs 작업 수 제한
 
 
 # ── Job 상태 저장소 ────────────────────────────────────────────
@@ -208,13 +210,25 @@ def get_job(job_id: str):
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(404, "job을 찾을 수 없습니다.")
+
+    # 대기 순번: 나보다 먼저 등록됐고 아직 안 끝난(queued/processing) job 개수.
+    # 0이면 지금 처리 중이거나 바로 다음 차례라는 뜻.
+    queue_position = None
+    if job["status"] in ("queued", "processing"):
+        queue_position = sum(
+            1 for other in jobs.values()
+            if other["status"] in ("queued", "processing")
+            and other["created_at"] < job["created_at"]
+        )
+
     return JSONResponse({
-        "job_id":     job_id,
-        "status":     job["status"],       # queued | processing | done | failed
-        "session_id": job["session_id"],   # done 상태에서만 값 있음
-        "model":      job["model"],
-        "stems":      job["stems"],        # done 상태에서만 값 있음 { name: url }
-        "error":      job["error"],        # failed 상태에서만 값 있음
+        "job_id":         job_id,
+        "status":         job["status"],       # queued | processing | done | failed
+        "session_id":     job["session_id"],   # done 상태에서만 값 있음
+        "model":          job["model"],
+        "stems":          job["stems"],        # done 상태에서만 값 있음 { name: url }
+        "error":          job["error"],        # failed 상태에서만 값 있음
+        "queue_position": queue_position,      # 내 앞에 몇 명이 있는지 (0 = 바로 다음/처리 중)
     })
 
 

@@ -95,7 +95,7 @@ export class BandAgeAudio extends EventTarget {
    * GET /jobs/{job_id}를 폴링해 완료(done)될 때까지 기다린다.
    * @param {File}   file   음원 파일 (mp3, wav, flac, ogg, m4a)
    * @param {string} model  'htdemucs' | 'htdemucs_6s'
-   * @param {{ onProgress?: (status: 'queued'|'processing') => void }} [options]
+   * @param {{ onProgress?: (status: 'queued'|'processing', queuePosition?: number) => void }} [options]
    * @returns {Promise<{ sessionId: string, stems: string[] }>}
    */
   async separate(file, model = 'htdemucs_6s', { onProgress } = {}) {
@@ -122,7 +122,7 @@ export class BandAgeAudio extends EventTarget {
       const job = await res.json();
       if (job.status === 'done') return job;
       if (job.status === 'failed') throw new Error(job.error ?? '분리 실패');
-      onProgress?.(job.status);
+      onProgress?.(job.status, job.queue_position);
     }
     throw new Error('타임아웃: 분리 시간이 너무 깁니다 (10분 초과).');
   }

@@ -374,7 +374,7 @@ async function requestAudioSeparation(file, onProgress){
     const job = await jobRes.json();
     if(job.status === 'done') return job;
     if(job.status === 'failed') throw new Error(job.error || '분리 실패');
-    onProgress?.(job.status);
+    onProgress?.(job.status, job.queue_position);
   }
   throw new Error('타임아웃: 분리 시간이 너무 깁니다 (10분 초과).');
 }
@@ -486,10 +486,14 @@ async function showLoading(){
 
     sub.textContent = '음원 업로드 중…';
     fill.style.width = '25%';
-    const job = await requestAudioSeparation(fileToSeparate, (status) => {
-      sub.textContent = status === 'processing'
-        ? 'AI가 음원을 분리하는 중… (첫 실행 시 모델 다운로드 포함 3~4분 소요)'
-        : '분리 대기열에서 대기 중…';
+    const job = await requestAudioSeparation(fileToSeparate, (status, queuePosition) => {
+      if(status === 'processing'){
+        sub.textContent = 'AI가 음원을 분리하는 중… (첫 실행 시 모델 다운로드 포함 3~4분 소요)';
+      } else if(queuePosition > 0){
+        sub.textContent = `분리 대기열에서 대기 중… (내 앞에 ${queuePosition}명)`;
+      } else {
+        sub.textContent = '분리 대기열에서 대기 중… (곧 시작합니다)';
+      }
       fill.style.width = '55%';
     });
     fill.style.width = '100%';
