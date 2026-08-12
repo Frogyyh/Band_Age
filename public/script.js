@@ -357,6 +357,16 @@ function stopLoadingTmi(){
 // 상대경로: 로컬은 vite proxy, 배포는 nginx가 8000번으로 넘겨준다.
 const SEPARATE_ORIGIN = '';
 
+// 대기/처리 중인 분리 job의 id. 로딩 화면 중간에 사용자가 페이지를 벗어나면
+// 이걸로 서버에 취소를 알려서, 아무도 안 기다리는 작업이 대기열을 붙잡지 않게 한다.
+let currentSeparationJobId = null;
+
+window.addEventListener('pagehide', () => {
+  if(!currentSeparationJobId) return;
+  // keepalive: 페이지가 사라져도 브라우저가 요청을 끝까지 보내준다.
+  fetch(SEPARATE_ORIGIN + '/jobs/' + currentSeparationJobId, { method: 'DELETE', keepalive: true }).catch(() => {});
+});
+
 // POST /separate → job_id 즉시 수신 → GET /jobs/{job_id} 폴링 → done 시 { session_id, stems, model } 반환
 // 서버가 항상 htdemucs_6s(vocals/drums/bass/guitar/piano/other)만 사용하므로 모델을 따로 지정하지 않는다.
 async function requestAudioSeparation(file, onProgress){
@@ -367,16 +377,21 @@ async function requestAudioSeparation(file, onProgress){
   const data = await res.json();
   if(!res.ok) throw new Error(data.detail || '서버 오류');
 
-  const deadline = Date.now() + 600000;
-  while(Date.now() < deadline){
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    const jobRes = await fetch(SEPARATE_ORIGIN + '/jobs/' + data.job_id);
-    const job = await jobRes.json();
-    if(job.status === 'done') return job;
-    if(job.status === 'failed') throw new Error(job.error || '분리 실패');
-    onProgress?.(job.status, job.queue_position);
+  currentSeparationJobId = data.job_id;
+  try {
+    const deadline = Date.now() + 600000;
+    while(Date.now() < deadline){
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const jobRes = await fetch(SEPARATE_ORIGIN + '/jobs/' + data.job_id);
+      const job = await jobRes.json();
+      if(job.status === 'done') return job;
+      if(job.status === 'failed') throw new Error(job.error || '분리 실패');
+      onProgress?.(job.status, job.queue_position);
+    }
+    throw new Error('타임아웃: 분리 시간이 너무 깁니다 (10분 초과).');
+  } finally {
+    currentSeparationJobId = null;
   }
-  throw new Error('타임아웃: 분리 시간이 너무 깁니다 (10분 초과).');
 }
 
 /* ---------- 로딩 화면에서 선택한 원곡 미리듣기 ---------- */

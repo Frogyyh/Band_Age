@@ -347,7 +347,9 @@ export class BandAgeAudio extends EventTarget {
     this._cleanupSTNodes();
     if (this._sessionId) {
       try {
-        await fetch(`${this._origin}/session/${this._sessionId}`, { method: 'DELETE' });
+        // keepalive: 탭 종료/새로고침으로 페이지가 사라져도 브라우저가 요청을 끝까지 보내준다.
+        // (일반 fetch는 beforeunload/pagehide 시점에 취소될 수 있음)
+        await fetch(`${this._origin}/session/${this._sessionId}`, { method: 'DELETE', keepalive: true });
       } catch (_) {}
       this._sessionId = null;
     }

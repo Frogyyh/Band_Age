@@ -93,26 +93,46 @@ def _run_demucs_job(
 ):
     """Demucs를 백그라운드 스레드에서 실행하고 jobs 딕셔너리를 업데이트한다."""
     with _sem:   # 최대 MAX_CONCURRENT 개까지만 동시 실행 (나머지는 queued 상태로 대기)
+        # 대기 중에 사용자가 취소했다면(페이지 이탈 등) 실제 Demucs 실행 없이 바로 종료.
+        # 대기열의 다음 사람이 그만큼 빨리 처리된다.
+        if jobs[job_id].get("cancelled"):
+            tmp_path.unlink(missing_ok=True)
+            shutil.rmtree(SESSION_DIR / session_id, ignore_errors=True)
+            jobs[job_id].update({"status": "failed", "error": "사용자가 취소함"})
+            return
         jobs[job_id]["status"] = "processing"
         try:
             tmp_out = UPLOAD_DIR / f"_out_{session_id}"
-            result = subprocess.run(
+            # Popen을 써서 프로세스 핸들을 job에 보관해둔다 — 처리 중 취소되면
+            # cancel_job()이 이 핸들로 실제 프로세스를 즉시 죽일 수 있게(=진짜 중단).
+            proc = subprocess.Popen(
                 [
                     sys.executable, "-m", "demucs",
                     "--name", MODEL,
                     "--out", str(tmp_out),
                     str(tmp_path),
                 ],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
             )
+            jobs[job_id]["proc"] = proc
+            _, stderr = proc.communicate()
+            jobs[job_id]["proc"] = None
             tmp_path.unlink(missing_ok=True)
 
-            if result.returncode != 0:
+            if jobs[job_id].get("cancelled"):
+                # 처리 중 취소되어 강제 종료된 경우: 결과가 불완전하므로 바로 정리.
                 shutil.rmtree(tmp_out, ignore_errors=True)
-                raise RuntimeError(f"Demucs 오류:\n{result.stderr}")
+                shutil.rmtree(SESSION_DIR / session_id, ignore_errors=True)
+                jobs[job_id].update({"status": "failed", "error": "사용자가 취소함"})
+                return
+
+            if proc.returncode != 0:
+                shutil.rmtree(tmp_out, ignore_errors=True)
+                raise RuntimeError(f"Demucs 오류:\n{stderr}")
 
             # originals 에 저장 + current 에 복사
             demucs_out = tmp_out / MODEL / tmp_path.stem
@@ -192,6 +212,8 @@ async def separate_audio(
         "stems":      None,
         "error":      None,
         "created_at": time.time(),
+        "cancelled":  False,
+        "proc":       None,   # 처리 중인 Demucs 서브프로세스 핸들 (취소 시 강제 종료용)
     }
 
     # 백그라운드 스레드 시작
@@ -230,6 +252,28 @@ def get_job(job_id: str):
         "error":          job["error"],        # failed 상태에서만 값 있음
         "queue_position": queue_position,      # 내 앞에 몇 명이 있는지 (0 = 바로 다음/처리 중)
     })
+
+
+# ── 작업 취소 (사용자가 대기/로딩 중 페이지를 이탈한 경우) ──────
+# 대기 중(queued)이면 Demucs를 아예 실행하지 않고 즉시 종료.
+# 처리 중(processing)이면 실제 Demucs 프로세스를 강제 종료해서 그 자리에서 바로 멈추고,
+# 대기열의 다음 job이 곧바로 세마포어를 넘겨받는다 (더 이상 완료까지 기다리지 않음).
+@app.delete("/jobs/{job_id}")
+def cancel_job(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "job을 찾을 수 없습니다.")
+    if job["status"] not in ("queued", "processing"):
+        return JSONResponse({"job_id": job_id, "cancelled": False, "reason": "이미 종료된 job입니다."})
+
+    job["cancelled"] = True
+    proc = job.get("proc")
+    if proc is not None and proc.poll() is None:
+        proc.kill()
+    if job["status"] == "queued":
+        job["status"] = "failed"
+        job["error"] = "사용자가 취소함"
+    return JSONResponse({"job_id": job_id, "cancelled": True})
 
 
 # ── 트랙 서빙 (current 기준) ───────────────────────────────────
