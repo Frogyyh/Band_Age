@@ -28,7 +28,9 @@ function audioFileFilter(req, file, cb) {
 export const uploadSong = multer({
   storage: songStorage,
   fileFilter: audioFileFilter,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  // 스테이지 믹스다운은 무압축 WAV로 내보내져서 곡 길이에 따라 수십~100MB를 넘길 수 있다
+  // (44.1kHz 스테레오 기준 1분당 약 10MB). 넉넉히 200MB로 잡는다.
+  limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 // fileUrl은 "/uploads/songs/x.mp3" 같은 웹 경로. 실제 파일은 server/uploads/ 아래에 있으므로
